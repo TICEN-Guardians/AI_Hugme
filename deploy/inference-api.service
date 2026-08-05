@@ -1,0 +1,16 @@
+# /etc/systemd/system/inference-api.service
+# systemd로 uvicorn을 상시 구동 (Docker 없이 바로 EC2에서 돌릴 때)
+[Unit]
+Description=Regression Inference FastAPI
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/fastapi-inference
+EnvironmentFile=/home/ubuntu/fastapi-inference/.env
+ExecStart=/home/ubuntu/fastapi-inference/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
