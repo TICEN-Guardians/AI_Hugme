@@ -83,8 +83,8 @@ async def ocr_register(files: list[UploadFile] = File(...)):
 @router.post("/check", response_model=RegisterCheckResponse)
 async def register_check(files: list[UploadFile] = File(...)):
     """
-    등기부등본 업로드 -> OCR/파싱 -> 최종 소유자를 bad_landlord 명단과 대조까지
-    한 번에 처리. 위험도 진단 흐름에서 실제로 쓰는 엔드포인트.
+    등기부등본 업로드 -> OCR/파싱 -> 최종 소유자를 bad_landlord 명단과 대조, 결과값 반환. 
+    위험도 진단에서 사용할 엔드포인트.
     """
     ocr_result = await ocr_register(files=files)
 

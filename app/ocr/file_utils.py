@@ -46,16 +46,16 @@ def bytes_to_image(image_bytes: bytes) -> np.ndarray:
 def preprocess_photo(img: np.ndarray) -> np.ndarray:
     """
     오프라인 서류 촬영 이미지 전처리:
-    1) 그레이스케일 변환
-    2) 기울기 보정(deskew)
-    3) 대비 향상(CLAHE)
+    1) 컬러 정보 제거(그레이스케일)
+    2) 기울기 보정
+    3) 대비 향상
     """
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     # --- 기울기 보정 ---
     gray = _deskew(gray)
 
-    # --- 대비 향상 (조명 불균일한 촬영본에 효과적) ---
+    # --- 대비 향상 ---
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     enhanced = clahe.apply(gray)
 
@@ -65,7 +65,7 @@ def preprocess_photo(img: np.ndarray) -> np.ndarray:
 
 
 def _deskew(gray: np.ndarray) -> np.ndarray:
-    """이진화 후 텍스트 영역의 최소 외접 사각형 각도로 기울기 보정."""
+    """이진화 후 기울기 보정."""
     thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
     coords = np.column_stack(np.where(thresh > 0))
 
@@ -81,7 +81,7 @@ def _deskew(gray: np.ndarray) -> np.ndarray:
 
     # 실제 촬영 문서는 보통 ±15도 이내로 기울어짐.
     # 이 범위를 벗어나면 minAreaRect가 텍스트 블록 형태(여러 줄 문단 등) 때문에
-    # 각도를 잘못 계산했을 가능성이 높으므로 보정을 스킵한다 (안전장치).
+    # 각도를 잘못 계산했을 가능성이 높으므로 보정을 스킵.
     MAX_CORRECTION_DEG = 15.0
     if abs(angle) < 0.3 or abs(angle) > MAX_CORRECTION_DEG:
         return gray

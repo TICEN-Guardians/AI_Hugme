@@ -31,7 +31,7 @@ OUTPUT_CSV = Path(
 
 def fetch_page(page: int) -> str:
     resp = requests.get(BASE_URL, params={"cur_page": page}, headers=HEADERS, timeout=10)
-    resp.encoding = "euc-kr"  # 이 페이지가 EUC-KR 인코딩 - 안 하면 한글 다 깨짐
+    resp.encoding = "euc-kr"  # 명단 페이지가 EUC-KR 인코딩
     return resp.text
 
 

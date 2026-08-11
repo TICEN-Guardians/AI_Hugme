@@ -70,7 +70,7 @@ def has_cancellation_mention(text: str) -> bool:
 
 
 def extract_sigungu(address: str) -> str | None:
-    """호환용 재노출 - 실제 구현은 app.address_utils로 이동함. 새 코드는 그쪽을 직접 import."""
+    """호환용. """
     return _extract_sigungu(address)
 
 

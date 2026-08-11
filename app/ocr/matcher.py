@@ -19,8 +19,7 @@ class MatchResult:
 
 def decide_match(rows: list[dict], sigungu: str | None) -> str:
     """
-    DB에서 이름으로 조회한 결과(rows)와, 등기부등본에서 뽑은 시군구를 비교해
-    매칭 등급을 결정하는 순수 함수 (DB 접근 없음 - 단위테스트하기 쉽게 분리).
+    DB에서 이름으로 조회한 결과와, 등기부등본에서 뽑은 시군구를 비교해 매칭 등급을 결정하는 함수
     """
     if not rows:
         return "NO_MATCH"
@@ -49,8 +48,6 @@ def _fetch_by_name(name: str) -> list[dict]:
             results = []
             for row in cur.fetchall():
                 record = dict(zip(columns, row))
-                # psycopg2가 DATE 컬럼을 datetime.date 객체로 반환하는데,
-                # 응답 스키마(BadLandlordCandidate.posted_date)는 str이라 직렬화 전 변환 필요
                 if record.get("posted_date") is not None:
                     record["posted_date"] = record["posted_date"].isoformat()
                 results.append(record)

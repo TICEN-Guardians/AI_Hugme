@@ -1,30 +1,32 @@
 """
-RapidOCR 래퍼 - 앱 시작 시 1회만 모델 로드 (요청마다 로드하면 느림)
-
-주의: rapidocr_onnxruntime(구버전)이 아니라 신형 통합 패키지 rapidocr>=3.9 사용.
-기본 모델은 중국어/영어 기준이라 한글 인식이 거의 안 되므로,
-반드시 Rec.lang_type=KOREAN 설정 필요.
+RapidOCR 래퍼 - 앱 시작 시 1회만 모델 로드
 
 최초 실행 시 한국어 인식 모델(korean_PP-OCRv4_rec_mobile.onnx, 약 10~15MB)을
-ModelScope CDN(modelscope.cn)에서 자동 다운로드함. 사내망/방화벽 환경이면
-이 도메인 접근이 막혀 있을 수 있으니, 그런 경우 사내 프록시를 통하거나
-미리 모델을 받아 로컬 경로로 지정해야 함 (RapidOCR(params={"Rec.model_path": "..."}))
+ModelScope CDN(modelscope.cn)에서 자동 다운로드.
+미리 모델을 받아 로컬 경로로 지정하는 방향도 고려.
 """
 import numpy as np
 from rapidocr import RapidOCR, LangRec, OCRVersion, ModelType
 
 _engine: RapidOCR | None = None
 
+def load_engine() -> RapidOCR:
+    """앱 시작 시(lifespan) 1회만 호출. 여기서 모델 로드/다운로드가 실제로 일어남."""
+    global _engine
+    _engine = RapidOCR(
+        params={
+            "Rec.lang_type": LangRec.KOREAN,
+            "Rec.ocr_version": OCRVersion.PPOCRV4,
+            "Rec.model_type": ModelType.MOBILE,
+        }
+    )
+    return _engine
 
 def get_engine() -> RapidOCR:
-    global _engine
+    """이미 로드된 엔진을 반환."""
     if _engine is None:
-        _engine = RapidOCR(
-            params={
-                "Rec.lang_type": LangRec.KOREAN,
-                "Rec.ocr_version": OCRVersion.PPOCRV4,
-                "Rec.model_type": ModelType.MOBILE,
-            }
+        raise RuntimeError(
+            "OCR 엔진이 아직 로드되지 않았습니다."
         )
     return _engine
 

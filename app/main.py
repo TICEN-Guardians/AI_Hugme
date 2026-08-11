@@ -14,6 +14,8 @@ from app.inference import predict_one, predict_batch
 
 from app.ocr.router import router as ocr_router
 
+from app.ocr.ocr_engine import load_engine
+
 
 
 logging.basicConfig(level=logging.INFO)
@@ -26,6 +28,7 @@ ml = {"model": None}
 async def lifespan(app: FastAPI):
     # 시작 시 1회: S3에서 가중치 받아 로드
     ml["model"] = load_model()
+    load_engine()
     yield
     # 종료 시 정리
     ml["model"] = None

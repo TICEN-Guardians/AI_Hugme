@@ -14,15 +14,15 @@ _SIDO_MAP = {
 }
 
 _SIGUNGU_PATTERN = re.compile(
-    r"([가-힣]+(?:특별시|광역시|특별자치시|특별자치도|도))\s*([가-힣]+[시군구])"
+    r"([가-힣]+(?:특별시|광역시|특별자치시|특별자치도|도))\s*([가-힣]+?[시군구])"
 )
-_SIGUNGU_SHORT_PATTERN = re.compile(r"([가-힣]{2})\s+([가-힣]+[시군구])")
+_SIGUNGU_SHORT_PATTERN = re.compile(r"([가-힣]{2,3})\s*([가-힣]+?[시군구])")
 
 
 def extract_sigungu(address: str | None) -> str | None:
     """
-    예) "부산광역시 해운대구 반여동 1034-4번지" -> "부산 해운대구"
-        "대전 동구 동서대로1683번길 19"       -> "대전 동구"
+    예) "부산광역시 해운대구 반여동 xxxx-x번지" -> "부산 해운대구"
+        "대전 동구 동서대로xxxx번길 xx"       -> "대전 동구"
     """
     if not address:
         return None
