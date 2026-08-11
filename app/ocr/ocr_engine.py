@@ -8,22 +8,34 @@ ModelScope CDN(modelscope.cn)에서 자동 다운로드.
 import numpy as np
 from rapidocr import RapidOCR, LangRec, OCRVersion, ModelType
 
+import os
+from pathlib import Path
+
 _engine: RapidOCR | None = None
 
 def load_engine() -> RapidOCR:
     """앱 시작 시(lifespan) 1회만 호출. 여기서 모델 로드/다운로드가 실제로 일어남."""
     global _engine
-    _engine = RapidOCR(
-        params={
-            "Rec.lang_type": LangRec.KOREAN,
-            "Rec.ocr_version": OCRVersion.PPOCRV4,
-            "Rec.model_type": ModelType.MOBILE,
-        }
-    )
+    
+    params = {
+        "Rec.lang_type": LangRec.KOREAN,
+        "Rec.ocr_version": OCRVersion.PPOCRV4,
+        "Rec.model_type": ModelType.MOBILE,
+    }
+
+    models_dir = Path(os.environ.get("OCR_MODELS_DIR", "/tmp/ocr_models"))
+    det_path = models_dir / "PP-OCRv6_det_small.onnx"
+    rec_path = models_dir / "korean_PP-OCRv4_rec_mobile.onnx"
+    if det_path.is_file():
+        params["Det.model_path"] = str(det_path)
+    if rec_path.is_file():
+        params["Rec.model_path"] = str(rec_path)
+
+    _engine = RapidOCR(params=params)
     return _engine
 
 def get_engine() -> RapidOCR:
-    """이미 로드된 엔진을 반환."""
+    """로드된 엔진을 반환."""
     if _engine is None:
         raise RuntimeError(
             "OCR 엔진이 아직 로드되지 않았습니다."
