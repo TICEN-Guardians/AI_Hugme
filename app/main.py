@@ -12,6 +12,10 @@ from app.schemas import (
 )
 from app.inference import predict_one, predict_batch
 
+from app.ocr.router import router as ocr_router
+
+
+
 logging.basicConfig(level=logging.INFO)
 
 # 모델은 앱 상태(state)에 담아둔다
@@ -29,6 +33,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Regression Inference API", version="1.0.0", lifespan=lifespan)
 
+app.include_router(ocr_router, prefix="/register", tags=["ocr"])
 
 @app.get("/health")
 async def health():
