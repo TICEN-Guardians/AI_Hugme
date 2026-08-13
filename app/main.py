@@ -12,6 +12,12 @@ from app.schemas import (
     PredictResponse,
 )
 
+from app.ocr.router import router as ocr_router
+
+from app.ocr.ocr_engine import load_engine
+
+
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("hugme-ai")
 
@@ -21,6 +27,7 @@ ml = {"model": None}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    load_engine()
     # 현재는 실제 전세·매매 시세추정 Model이 아직 준비되지 않았으므로
     # Model Load에 실패하더라도 FastAPI Application 자체는 실행한다.
     try:
@@ -31,9 +38,7 @@ async def lifespan(app: FastAPI):
         logger.warning(
             "Model is not available yet. FastAPI starts without a model."
         )
-
     yield
-
     # Application 종료 시 Model 참조를 정리한다.
     ml["model"] = None
 
@@ -44,6 +49,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.include_router(ocr_router, prefix="/register", tags=["ocr"])
 
 @app.get("/health")
 async def health():
