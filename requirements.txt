@@ -18,3 +18,4 @@ python-multipart
 rapidocr>=3.9.0
 onnxruntime
 pymupdf==1.25.2
+opencv-python-headless
