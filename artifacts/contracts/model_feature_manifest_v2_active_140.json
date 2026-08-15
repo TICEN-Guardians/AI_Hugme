@@ -1,0 +1,324 @@
+{
+  "매매_단독다가구": {
+    "dataset_version": "CleanDataset_v1",
+    "split_version": "TimeSplit_v1",
+    "feature_manifest_version": "ModelFeatureManifest_v2",
+    "feature_count": 15,
+    "features": [
+      "연면적(㎡)",
+      "대지면적(㎡)",
+      "거래시점건축연령_파생",
+      "대지대비연면적비율_파생",
+      "RONE_중위단위가격_천원㎡",
+      "RONE_가격지수",
+      "RONE_가격지수_전월비",
+      "계약월_파생",
+      "신규취급액기준_COFIX",
+      "ECOS_주담대금리_적용값",
+      "KOSIS_선행지수_순환변동치",
+      "KOSIS_경제심리지수",
+      "KOSIS_건설기성액",
+      "시군구",
+      "주택유형"
+    ],
+    "categorical_features": [
+      "시군구",
+      "주택유형"
+    ],
+    "target": {
+      "target": "log_총거래가격",
+      "transform": "ln(거래금액(만원) * 10000)",
+      "inverse_primary": "exp(y_pred)",
+      "primary_output": "예상 총매매가격(원)",
+      "area_feature": "",
+      "secondary_output": ""
+    },
+    "inactive_features": [
+      "도로조건"
+    ]
+  },
+  "매매_아파트": {
+    "dataset_version": "CleanDataset_v1",
+    "split_version": "TimeSplit_v1",
+    "feature_manifest_version": "ModelFeatureManifest_v2",
+    "feature_count": 17,
+    "features": [
+      "시군구",
+      "단지명",
+      "전용면적(㎡)",
+      "층",
+      "건축물대장_원천_표제부_최고지상층수",
+      "최종건축연령",
+      "건축물대장_승강기존재여부",
+      "건축물대장_내진설계적용여부_파생",
+      "건축물대장_원천_건축물_최종세대호수",
+      "RONE_가격지수",
+      "RONE_가격지수_전월비",
+      "RONE_중위단위가격_천원㎡",
+      "계약월",
+      "신규취급액기준_COFIX",
+      "ECOS_주담대금리_적용값",
+      "KOSIS_선행지수_순환변동치",
+      "KOSIS_경제심리지수"
+    ],
+    "categorical_features": [
+      "시군구",
+      "단지명",
+      "건축물대장_내진설계적용여부_파생"
+    ],
+    "target": {
+      "target": "log_매매단가_원㎡",
+      "transform": "ln((거래금액(만원) * 10000) / 전용면적(㎡))",
+      "inverse_primary": "exp(y_pred)",
+      "primary_output": "예상 매매단가(원/㎡)",
+      "area_feature": "전용면적(㎡)",
+      "secondary_output": "예상 총매매가격(원) = exp(y_pred) * 전용면적(㎡)"
+    },
+    "inactive_features": []
+  },
+  "매매_연립다세대": {
+    "dataset_version": "CleanDataset_v1",
+    "split_version": "TimeSplit_v1",
+    "feature_manifest_version": "ModelFeatureManifest_v2",
+    "feature_count": 18,
+    "features": [
+      "전용면적(㎡)",
+      "대지권면적(㎡)",
+      "층",
+      "최종건축연령",
+      "건축물대장_원천_표제부_최고지상층수",
+      "건축물대장_승강기존재여부",
+      "건축물대장_내진설계적용여부_파생",
+      "RONE_가격지수_전월비",
+      "RONE_중위단위가격_천원㎡",
+      "계약월",
+      "신규취급액기준_COFIX",
+      "ECOS_주담대금리_적용값",
+      "KOSIS_선행지수_순환변동치",
+      "KOSIS_경제심리지수",
+      "KOSIS_건설기성액",
+      "시군구",
+      "건물명",
+      "건축물대장_원천_대표구조"
+    ],
+    "categorical_features": [
+      "건축물대장_내진설계적용여부_파생",
+      "시군구",
+      "건물명",
+      "건축물대장_원천_대표구조"
+    ],
+    "target": {
+      "target": "log_매매단가_원㎡",
+      "transform": "ln((거래금액(만원) * 10000) / 전용면적(㎡))",
+      "inverse_primary": "exp(y_pred)",
+      "primary_output": "예상 매매단가(원/㎡)",
+      "area_feature": "전용면적(㎡)",
+      "secondary_output": "예상 총매매가격(원) = exp(y_pred) * 전용면적(㎡)"
+    },
+    "inactive_features": []
+  },
+  "매매_오피스텔": {
+    "dataset_version": "CleanDataset_v1",
+    "split_version": "TimeSplit_v1",
+    "feature_manifest_version": "ModelFeatureManifest_v2",
+    "feature_count": 21,
+    "features": [
+      "전용면적(㎡)",
+      "층",
+      "최종건축연령",
+      "건축물대장_원천_표제부_건폐율최대",
+      "건축물대장_원천_표제부_최고지상층수",
+      "건축물대장_원천_표제부_최대지하층수",
+      "건축물대장_원천_건축물_최종세대호수",
+      "건축물대장_내진설계적용여부_파생",
+      "RONE_평균단위가격_천원㎡",
+      "RONE_가격지수",
+      "RONE_가격지수_전월비",
+      "계약월",
+      "신규취급액기준_COFIX",
+      "ECOS_주담대금리_적용값",
+      "KOSIS_선행지수_순환변동치",
+      "KOSIS_경제심리지수",
+      "KOSIS_건설기성액",
+      "시군구",
+      "단지명",
+      "건축물대장_원천_대표주용도",
+      "건축물대장_원천_대표구조"
+    ],
+    "categorical_features": [
+      "건축물대장_내진설계적용여부_파생",
+      "시군구",
+      "단지명",
+      "건축물대장_원천_대표주용도",
+      "건축물대장_원천_대표구조"
+    ],
+    "target": {
+      "target": "log_매매단가_원㎡",
+      "transform": "ln((거래금액(만원) * 10000) / 전용면적(㎡))",
+      "inverse_primary": "exp(y_pred)",
+      "primary_output": "예상 매매단가(원/㎡)",
+      "area_feature": "전용면적(㎡)",
+      "secondary_output": "예상 총매매가격(원) = exp(y_pred) * 전용면적(㎡)"
+    },
+    "inactive_features": []
+  },
+  "전세_단독다가구": {
+    "dataset_version": "CleanDataset_v1",
+    "split_version": "TimeSplit_v1",
+    "feature_manifest_version": "ModelFeatureManifest_v2",
+    "feature_count": 13,
+    "features": [
+      "계약면적(㎡)",
+      "거래시점건축연령_파생",
+      "계약월_파생",
+      "RONE_중위단위가격_천원㎡",
+      "RONE_가격지수",
+      "RONE_가격지수_전월비",
+      "신규취급액기준_COFIX",
+      "ECOS_주담대금리_적용값",
+      "KOSIS_선행지수_순환변동치",
+      "KOSIS_경제심리지수",
+      "KOSIS_건설기성액",
+      "시군구",
+      "주택유형"
+    ],
+    "categorical_features": [
+      "시군구",
+      "주택유형"
+    ],
+    "target": {
+      "target": "log_계약면적기준전세단가",
+      "transform": "ln((보증금(만원) * 10000) / 계약면적(㎡))",
+      "inverse_primary": "exp(y_pred)",
+      "primary_output": "예상 전세단가(원/㎡)",
+      "area_feature": "계약면적(㎡)",
+      "secondary_output": "예상 전세보증금(원) = exp(y_pred) * 계약면적(㎡)"
+    },
+    "inactive_features": [
+      "도로조건"
+    ]
+  },
+  "전세_아파트": {
+    "dataset_version": "CleanDataset_v1",
+    "split_version": "TimeSplit_v1",
+    "feature_manifest_version": "ModelFeatureManifest_v2",
+    "feature_count": 17,
+    "features": [
+      "전용면적(㎡)",
+      "층",
+      "거래시점건축연령_파생",
+      "계약월_파생",
+      "RONE_중위단위가격_천원㎡",
+      "RONE_가격지수",
+      "RONE_가격지수_전월비",
+      "신규취급액기준_COFIX",
+      "ECOS_주담대금리_적용값",
+      "KOSIS_선행지수_순환변동치",
+      "KOSIS_경제심리지수",
+      "KOSIS_건설기성액",
+      "건축물대장_원천_건축물_최종세대호수",
+      "건축물대장_원천_표제부_최고지상층수",
+      "건축물대장_원천_표제부_비상용승강기수합",
+      "시군구",
+      "단지명"
+    ],
+    "categorical_features": [
+      "시군구",
+      "단지명"
+    ],
+    "target": {
+      "target": "log_전세단가_원㎡",
+      "transform": "ln((보증금(만원) * 10000) / 전용면적(㎡))",
+      "inverse_primary": "exp(y_pred)",
+      "primary_output": "예상 전세단가(원/㎡)",
+      "area_feature": "전용면적(㎡)",
+      "secondary_output": "예상 전세보증금(원) = exp(y_pred) * 전용면적(㎡)"
+    },
+    "inactive_features": []
+  },
+  "전세_연립다세대": {
+    "dataset_version": "CleanDataset_v1",
+    "split_version": "TimeSplit_v1",
+    "feature_manifest_version": "ModelFeatureManifest_v2",
+    "feature_count": 18,
+    "features": [
+      "전용면적(㎡)",
+      "층",
+      "거래시점건축연령_파생",
+      "계약월_파생",
+      "RONE_중위단위가격_천원㎡",
+      "RONE_가격지수",
+      "RONE_가격지수_전월비",
+      "신규취급액기준_COFIX",
+      "ECOS_주담대금리_적용값",
+      "KOSIS_선행지수_순환변동치",
+      "KOSIS_경제심리지수",
+      "KOSIS_건설기성액",
+      "건축물대장_원천_표제부_최고지상층수",
+      "건축물대장_원천_표제부_승용승강기수합",
+      "시군구",
+      "건물명",
+      "건축물대장_원천_대표구조",
+      "건축물대장_내진설계적용여부_파생"
+    ],
+    "categorical_features": [
+      "시군구",
+      "건물명",
+      "건축물대장_원천_대표구조",
+      "건축물대장_내진설계적용여부_파생"
+    ],
+    "target": {
+      "target": "log_전세단가_원㎡",
+      "transform": "ln((보증금(만원) * 10000) / 전용면적(㎡))",
+      "inverse_primary": "exp(y_pred)",
+      "primary_output": "예상 전세단가(원/㎡)",
+      "area_feature": "전용면적(㎡)",
+      "secondary_output": "예상 전세보증금(원) = exp(y_pred) * 전용면적(㎡)"
+    },
+    "inactive_features": []
+  },
+  "전세_오피스텔": {
+    "dataset_version": "CleanDataset_v1",
+    "split_version": "TimeSplit_v1",
+    "feature_manifest_version": "ModelFeatureManifest_v2",
+    "feature_count": 21,
+    "features": [
+      "전용면적(㎡)",
+      "층",
+      "거래시점건축연령_파생",
+      "계약월_파생",
+      "RONE_평균단위가격_천원㎡",
+      "RONE_가격지수",
+      "RONE_가격지수_전월비",
+      "신규취급액기준_COFIX",
+      "ECOS_주담대금리_적용값",
+      "KOSIS_선행지수_순환변동치",
+      "KOSIS_경제심리지수",
+      "KOSIS_건설기성액",
+      "건축물대장_원천_표제부_건폐율최대",
+      "건축물대장_원천_표제부_최고지상층수",
+      "건축물대장_원천_표제부_최대지하층수",
+      "건축물대장_원천_건축물_최종세대호수",
+      "건축물대장_원천_표제부_승용승강기수합",
+      "시군구",
+      "단지명",
+      "건축물대장_원천_대표주용도",
+      "건축물대장_원천_대표구조"
+    ],
+    "categorical_features": [
+      "시군구",
+      "단지명",
+      "건축물대장_원천_대표주용도",
+      "건축물대장_원천_대표구조"
+    ],
+    "target": {
+      "target": "log_전세단가_원㎡",
+      "transform": "ln((보증금(만원) * 10000) / 전용면적(㎡))",
+      "inverse_primary": "exp(y_pred)",
+      "primary_output": "예상 전세단가(원/㎡)",
+      "area_feature": "전용면적(㎡)",
+      "secondary_output": "예상 전세보증금(원) = exp(y_pred) * 전용면적(㎡)"
+    },
+    "inactive_features": []
+  }
+}
