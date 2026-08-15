@@ -25,10 +25,13 @@ def calculate_sha256(file_path: Path) -> str:
 def find_model_file(
     model_dir: Path,
     model_key: str,
+    extension: str,
 ) -> Path:
     matches = [
         file_path
-        for file_path in model_dir.glob("*.cbm")
+        for file_path in model_dir.glob(
+            f"*.{extension}"
+        )
         if model_key in file_path.stem
     ]
 
@@ -57,11 +60,20 @@ def main() -> None:
         required=True,
     )
     parser.add_argument(
+        "--framework",
+        required=True,
+    )
+    parser.add_argument(
+        "--format",
+        required=True,
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         required=True,
     )
     args = parser.parse_args()
+    file_format = args.format.lstrip(".")
 
     contract = load_feature_contract()
     models = {}
@@ -70,9 +82,12 @@ def main() -> None:
         model_file = find_model_file(
             model_dir=args.model_dir,
             model_key=model_key,
+            extension=file_format,
         )
 
         models[model_key] = {
+            "framework": args.framework,
+            "format": file_format,
             "s3_key": (
                 f"{args.s3_prefix.rstrip('/')}/"
                 f"{model_file.name}"

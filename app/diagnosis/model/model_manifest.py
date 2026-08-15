@@ -6,6 +6,8 @@ from typing import Any
 
 @dataclass(frozen=True)
 class ModelArtifact:
+    framework: str
+    format: str
     s3_key: str
     sha256: str
 
@@ -26,6 +28,8 @@ def load_model_manifest(
 
     models = {
         model_key: ModelArtifact(
+            framework=value["framework"],
+            format=value["format"],
             s3_key=value["s3_key"],
             sha256=value["sha256"].lower(),
         )
@@ -81,9 +85,19 @@ def _validate_manifest(
         raise ValueError("S3 모델 경로 중복")
 
     for model_key, artifact in manifest.models.items():
-        if not artifact.s3_key.endswith(".cbm"):
+        if not artifact.framework:
             raise ValueError(
-                f"{model_key} 모델 확장자 오류"
+                f"{model_key} framework 없음"
+            )
+
+        if not artifact.format:
+            raise ValueError(
+                f"{model_key} format 없음"
+            )
+
+        if not artifact.s3_key:
+            raise ValueError(
+                f"{model_key} S3 Key 없음"
             )
 
         if (

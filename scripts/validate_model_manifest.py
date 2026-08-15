@@ -14,6 +14,8 @@ def main() -> None:
 
     models = {
         model_key: {
+            "framework": "catboost",
+            "format": "cbm",
             "s3_key": (
                 f"artifacts/{model_key}.cbm"
             ),
