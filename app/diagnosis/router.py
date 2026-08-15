@@ -26,10 +26,8 @@ router = APIRouter(
 
 def resolve_dummy_housing_type(address: str) -> HousingType:
     """
-    실제 PropertyResolver가 구현되기 전까지 사용하는 임시 판별 함수.
-
-    주소 문자열에 포함된 단어로만 주택유형을 반환한다.
-    실제 서비스에서는 반드시 주소 정규화 및 건축물대장 조회로 교체한다.
+    실제 PropertyResolver가 구현되기 전까지 임시 판별 함수로 사용 중 .
+    실제 서비스에서는 주소 정규화 및 건축물대장 조회로 교체할 예정.
     """
 
     if "오피스텔" in address:
@@ -53,9 +51,8 @@ async def resolve_property(
     request: PropertyResolveRequest,
 ) -> PropertyResolveResponse:
     """
-    주소 입력 단계에서 호출하는 dummy Property Resolve endpoint.
-
-    이 단계에서는 Diagnosis와 analysisId를 생성하지 않는다.
+    주소 입력 단계에서 호출하는 dummy Property Resolve 앤드포인트.
+    이 단계에서는 Diagnosis와 analysisId를 생성하지 않음.
     """
 
     normalized_address = " ".join(request.address.strip().split())
@@ -79,10 +76,9 @@ async def analyze_diagnosis(
     request: DiagnosisRequest,
 ) -> DiagnosisResponse:
     """
-    SpringBoot-FastAPI 연결 확인을 위한 dummy Analyze endpoint.
-
-    실제 구현 단계에서는 고정값 생성 부분을 DiagnosisPipeline 호출로
-    교체한다.
+    SpringBoot-FastAPI 연결 확인을 위한 dummy Analyze 앤드포인트.
+    실제 구현 단계에서 고정값 생성 부분을 DiagnosisPipeline 호출로
+    교체할 예정.
     """
 
     housing_type = resolve_dummy_housing_type(request.address)
@@ -152,8 +148,7 @@ async def analyze_diagnosis(
         forcedWarnings=[],
         missingChecks=[],
         report=(
-            "SpringBoot와 FastAPI 사이의 진단 API 연결을 "
-            "확인하기 위한 임시 분석 결과입니다."
+            "SpringBoot와 FastAPI 사이의 진단 API 연결 확인하려고 임시 분석 결과 넣음 제거 예정."
         ),
     )
 
@@ -163,9 +158,7 @@ def calculate_rate(
     denominator: int | Decimal,
 ) -> float:
     """
-    비율을 백분율 값으로 변환한다.
-
-    예: 0.8333 → 83.33
+    비율을 백분율 값으로 변환함. 예: 0.8333 → 83.33
     """
 
     if denominator <= 0:
