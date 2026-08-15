@@ -6,6 +6,7 @@ from typing import Any
 
 MODEL_COUNT = 8
 TOTAL_FEATURE_COUNT = 140
+FEATURE_MANIFEST_VERSION = "ModelFeatureManifest_v2"
 
 MANIFEST_PATH = (
     Path(__file__).resolve().parents[2]
