@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     model_local_path: str = "/tmp/model.pkl"
     force_download: bool = False
 
+    building_ledger_api_key: str = ""
+    building_ledger_api_timeout: float = 10.0
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
