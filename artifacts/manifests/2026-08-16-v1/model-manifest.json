@@ -1,0 +1,54 @@
+{
+  "version": "2026-08-16-v1",
+  "feature_manifest_version": "ModelFeatureManifest_v2",
+  "models": {
+    "매매_단독다가구": {
+      "framework": "catboost",
+      "format": "cbm",
+      "s3_key": "models/diagnosis/releases/2026-08-16-v1/artifacts/catboost_baseline_매매_단독다가구.cbm",
+      "sha256": "f5041e0bdae3fe4e944ce60a8bdd82a0169cdfb86720ccba8a394cff2693c7dc"
+    },
+    "매매_아파트": {
+      "framework": "catboost",
+      "format": "cbm",
+      "s3_key": "models/diagnosis/releases/2026-08-16-v1/artifacts/catboost_baseline_매매_아파트.cbm",
+      "sha256": "a510aa9c89dfa2d7d657a84db9ed4194bca1dd0163b3df003180d670af45b181"
+    },
+    "매매_연립다세대": {
+      "framework": "catboost",
+      "format": "cbm",
+      "s3_key": "models/diagnosis/releases/2026-08-16-v1/artifacts/catboost_baseline_매매_연립다세대.cbm",
+      "sha256": "71f90744e333e5fc21ae4f5ff34bb1a69f78cfe9b9ba784c43c1e206dbaa3d74"
+    },
+    "매매_오피스텔": {
+      "framework": "catboost",
+      "format": "cbm",
+      "s3_key": "models/diagnosis/releases/2026-08-16-v1/artifacts/catboost_baseline_매매_오피스텔.cbm",
+      "sha256": "f666cf618393251ca98ff700cc2d5bce6b107adc246a6c113587ebd50c0fd2e8"
+    },
+    "전세_단독다가구": {
+      "framework": "catboost",
+      "format": "cbm",
+      "s3_key": "models/diagnosis/releases/2026-08-16-v1/artifacts/catboost_baseline_전세_단독다가구.cbm",
+      "sha256": "0942358784d3f8799dddf802013b68b124626109410d0461c69b826797d42362"
+    },
+    "전세_아파트": {
+      "framework": "catboost",
+      "format": "cbm",
+      "s3_key": "models/diagnosis/releases/2026-08-16-v1/artifacts/catboost_baseline_전세_아파트.cbm",
+      "sha256": "3ccb59a3a727243b75d13e8702cc7c4e9f2e4bc5aa3835f2940b385270ad77a3"
+    },
+    "전세_연립다세대": {
+      "framework": "catboost",
+      "format": "cbm",
+      "s3_key": "models/diagnosis/releases/2026-08-16-v1/artifacts/catboost_baseline_전세_연립다세대.cbm",
+      "sha256": "b7c6f0b0d1a39e89e863ca81bde0c83dbd23b1a3f6e1444ccc37badd9d003a1b"
+    },
+    "전세_오피스텔": {
+      "framework": "catboost",
+      "format": "cbm",
+      "s3_key": "models/diagnosis/releases/2026-08-16-v1/artifacts/catboost_baseline_전세_오피스텔.cbm",
+      "sha256": "7d8e9c0b12fcfa374dc7d5d8dca12583b29dc86e0622f8fcc063077571b3ca6c"
+    }
+  }
+}
