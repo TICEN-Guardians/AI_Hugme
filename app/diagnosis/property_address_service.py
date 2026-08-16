@@ -1,0 +1,102 @@
+from dataclasses import dataclass
+
+from app.diagnosis.external.address.schemas import (
+    ResolvedAddress,
+)
+from app.diagnosis.external.address.service import (
+    AddressService,
+)
+from app.diagnosis.external.building_ledger.service import (
+    BuildingLedgerResult,
+    BuildingLedgerService,
+)
+
+
+class PropertyAddressError(ValueError):
+    pass
+
+
+@dataclass(frozen=True)
+class PropertyAddressResult:
+    address: ResolvedAddress
+    building_ledger: BuildingLedgerResult
+    dong_name: str
+
+
+class PropertyAddressService:
+    def __init__(
+        self,
+        address_service: AddressService,
+        building_ledger_service: BuildingLedgerService,
+    ) -> None:
+        self.address_service = address_service
+        self.building_ledger_service = (
+            building_ledger_service
+        )
+
+    def resolve(
+        self,
+        address: str,
+        dong_name: str,
+    ) -> PropertyAddressResult:
+        resolved = self.address_service.resolve(address)
+
+        if not resolved.building_name:
+            raise PropertyAddressError(
+                "주소 검색 결과의 건물명 누락"
+            )
+
+        self._validate_dong(
+            requested=dong_name,
+            available=resolved.available_dongs,
+        )
+
+        ledger_result = (
+            self.building_ledger_service.fetch(
+                key=resolved.building_ledger_key,
+                building_name=resolved.building_name,
+                dong_name=dong_name,
+            )
+        )
+
+        return PropertyAddressResult(
+            address=resolved,
+            building_ledger=ledger_result,
+            dong_name=dong_name,
+        )
+
+    @classmethod
+    def _validate_dong(
+        cls,
+        requested: str,
+        available: tuple[str, ...],
+    ) -> None:
+        requested_value = cls._dong(requested)
+
+        if not requested_value:
+            raise PropertyAddressError(
+                "동 정보 누락"
+            )
+
+        if not available:
+            return
+
+        available_values = {
+            cls._dong(value)
+            for value in available
+        }
+
+        if requested_value not in available_values:
+            raise PropertyAddressError(
+                f"주소에 존재하지 않는 동: "
+                f"{requested}"
+            )
+
+    @staticmethod
+    def _dong(value: str) -> str:
+        text = "".join(value.split()).lower()
+
+        if text.endswith("동"):
+            return text[:-1]
+
+        return text
