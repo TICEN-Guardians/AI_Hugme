@@ -94,13 +94,19 @@ class RegistrySummary(BaseModel):
 
 class OcrRegisterResponse(BaseModel):
     """등기부등본 OCR/파싱 결과"""
-
+    analysis_id: str = Field(..., description="위험도 분석 건 연결키 (Spring Boot 발급, 요청 시 전달받음)")
     parse_status: str = Field(
-        ..., description="SUCCESS | PARTIAL | NEEDS_REVIEW | FAILED", examples=["SUCCESS"]
+    ..., description="SUCCESS | PARTIAL | NEEDS_REVIEW | FAILED", examples=["SUCCESS"]
     )
-    parsed_at: str | None = Field(None, description="파싱 수행 시각 (ISO8601)")
+    parse_confidence: str = Field(
+    ...,
+    description="HIGH | MEDIUM | LOW | UNKNOWN. pdf_text는 OCR을 안 거쳐 인식오류 개념이 "
+                "없으므로 HIGH 고정. pdf_ocr/image_ocr은 RapidOCR 인식 점수 기반.",
+    examples=["HIGH"],
+    )
+    parsed_at: str | None = Field(None, description="파싱 수행 시각")
     raw_address: str | None = Field(None, description="등본 표기 부동산 소재지 (소유자 주소와 다름)")
-    property_address: str | None = Field(None, description="(구버전 호환) raw_address와 동일")
+    property_address: str | None = Field(None, description="raw_address와 동일")
     issue_date: str | None = Field(None, description="열람/발급일 (YYYY-MM-DD) - 등본 최신성 판단용")
     current_owners: List[CurrentOwner] = Field(
         default_factory=list,
@@ -131,14 +137,14 @@ class OcrRegisterResponse(BaseModel):
 class OwnerMatchResult(BaseModel):
     """소유자 1명에 대한 악성임대인 명단 대조 결과"""
 
-    owner: CurrentOwner = Field(..., description="대조 대상 소유자")
+    owner: CurrentOwner | None = Field( None, description="대조 대상 소유자")
     check_status: str = Field(
         ..., description="CHECKED(조회 수행됨) | NOT_CHECKED(조회 안 함) | ERROR(조회 실패)"
     )
     match_status: str = Field(
         ...,
         description="MATCH_HIGH(이름+나이 일치) | MATCH_NAME_ONLY(이름만 일치, 추가확인 필요) | "
-                    "NO_MATCH(조회했고 명단에 없음) | UNKNOWN(미조회/조회오류 - NO_MATCH로 변환 금지)",
+                    "NO_MATCH(조회했고 명단에 없음) | UNKNOWN(미조회/조회오류)",
     )
     matched: bool | None = Field(
         None,
@@ -150,7 +156,7 @@ class OwnerMatchResult(BaseModel):
     match_candidates: List[BadLandlordCandidate] = Field(
         default_factory=list, description="명단에서 걸린 후보 목록"
     )
-    checked_at: str | None = Field(None, description="조회 시점 (ISO8601)")
+    checked_at: str | None = Field(None, description="조회 시점")
     source: str = Field("HUG_상습채무불이행자명단", description="명단 출처")
 
 class RegisterCheckResponse(BaseModel):
