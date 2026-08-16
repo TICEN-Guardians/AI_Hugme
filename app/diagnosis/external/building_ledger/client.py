@@ -119,13 +119,20 @@ class BuildingLedgerClient:
             params.update(extra_params)
 
         try:
-            response = self.session.get(
-                f"{self.BASE_URL}/{endpoint}",
-                params=params,
-                timeout=self.timeout,
-            )
-            response.raise_for_status()
-            payload = response.json()
+            for attempt in range(2):
+                response = self.session.get(
+                    f"{self.BASE_URL}/{endpoint}",
+                    params=params,
+                    timeout=self.timeout,
+                )
+                response.raise_for_status()
+
+                try:
+                    payload = response.json()
+                    break
+                except requests.exceptions.JSONDecodeError:
+                    if attempt == 1:
+                        raise
         except requests.RequestException as exc:
             status = (
                 exc.response.status_code

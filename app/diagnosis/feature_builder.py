@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from app.diagnosis.feature_contract import FeatureContract
+from app.diagnosis.feature_fallback import FeatureFallbackPolicy
 from app.diagnosis.feature_input import FeatureInput, FeatureValue
 from app.diagnosis.feature_sources import FeatureSource
 
@@ -11,14 +12,20 @@ class ModelFeatures:
     names: tuple[str, ...]
     values: tuple[FeatureValue, ...]
     categorical_indices: tuple[int, ...]
+    fallback_features: tuple[str, ...] = ()
 
     def as_row(self) -> list[FeatureValue]:
         return list(self.values)
 
 
 class FeatureBuilder:
-    def __init__(self, contract: FeatureContract) -> None:
+    def __init__(
+        self,
+        contract: FeatureContract,
+        fallback_policy: FeatureFallbackPolicy | None = None,
+    ) -> None:
         self.contract = contract
+        self.fallback_policy = fallback_policy
 
     def build(
         self,
@@ -37,21 +44,32 @@ class FeatureBuilder:
             self._derived_values(feature_input)
         )
 
-        missing = [
-            name
-            for name in model.features
-            if available.get(name) is None
-        ]
+        values = []
+        fallback_features = []
 
-        if missing:
-            raise ValueError(
-                f"{model_key} Feature 누락: {missing}"
-            )
+        for name in model.features:
+            value = available.get(name)
 
-        values = tuple(
-            available[name]
-            for name in model.features
-        )
+            if self.fallback_policy:
+                value, fallback_used = (
+                    self.fallback_policy.resolve(
+                        model_key=model_key,
+                        feature_name=name,
+                        value=value,
+                        categorical=(
+                            name in model.categorical_features
+                        ),
+                    )
+                )
+
+                if fallback_used:
+                    fallback_features.append(name)
+            elif value is None:
+                raise ValueError(
+                    f"{model_key} Feature 누락: {name}"
+                )
+
+            values.append(value)
 
         categorical_indices = tuple(
             index
@@ -62,8 +80,9 @@ class FeatureBuilder:
         return ModelFeatures(
             model_key=model_key,
             names=model.features,
-            values=values,
+            values=tuple(values),
             categorical_indices=categorical_indices,
+            fallback_features=tuple(fallback_features),
         )
 
     @staticmethod
