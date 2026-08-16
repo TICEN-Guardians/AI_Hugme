@@ -34,50 +34,6 @@ HOUSING_TYPE_NAMES = {
 }
 
 
-class MaskRegion(BaseModel):
-    """LLM 전송 전에 검정색으로 가릴 이미지 영역."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    page: int = Field(0, ge=0, description="0부터 시작하는 PDF/이미지 페이지 번호")
-    x1: float = Field(..., ge=0)
-    y1: float = Field(..., ge=0)
-    x2: float = Field(..., ge=0)
-    y2: float = Field(..., ge=0)
-    referenceWidth: float | None = Field(
-        None,
-        gt=0,
-        description="픽셀 좌표를 측정한 기준 이미지 너비",
-    )
-    referenceHeight: float | None = Field(
-        None,
-        gt=0,
-        description="픽셀 좌표를 측정한 기준 이미지 높이",
-    )
-
-    @model_validator(mode="after")
-    def validate_region(self):
-        if self.x2 <= self.x1 or self.y2 <= self.y1:
-            raise ValueError("x2/y2는 x1/y1보다 커야 합니다.")
-
-        has_reference_width = self.referenceWidth is not None
-        has_reference_height = self.referenceHeight is not None
-        if has_reference_width != has_reference_height:
-            raise ValueError(
-                "referenceWidth와 referenceHeight는 함께 입력해야 합니다."
-            )
-
-        if has_reference_width and (
-            self.x2 > self.referenceWidth
-            or self.y2 > self.referenceHeight
-        ):
-            raise ValueError("마스킹 좌표가 기준 이미지 크기를 벗어났습니다.")
-
-        if not has_reference_width and max(self.x1, self.y1, self.x2, self.y2) <= 1:
-            return self
-
-        return self
-
 
 class ChecklistFields(BaseModel):
     """Spring 체크리스트 API가 받는 최종 9개 필드."""

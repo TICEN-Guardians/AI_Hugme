@@ -89,7 +89,7 @@ async def read_one_image(file: UploadFile):
     if is_pdf:
         raise HTTPException(
             status_code=400,
-            detail="현재 방식은 PDF가 아니라 한 페이지 이미지 1장만 지원합니다.",
+            detail="한 페이지 이미지 1장만 지원합니다.",
         )
 
     content = await file.read()

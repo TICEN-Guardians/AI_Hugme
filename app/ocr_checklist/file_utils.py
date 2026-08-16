@@ -1,30 +1,9 @@
 """체크리스트 이미지 디코딩, 회전 보정, OCR 전처리 유틸."""
 
 import cv2
-import fitz
 import numpy as np
 
-from .schemas import MaskRegion
 
-
-def pdf_to_images(pdf_bytes: bytes, dpi: int = 300) -> list[np.ndarray]:
-    """PDF 전체 페이지를 BGR 이미지로 렌더링한다."""
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    matrix = fitz.Matrix(dpi / 72, dpi / 72)
-    images: list[np.ndarray] = []
-
-    try:
-        for page in doc:
-            pixmap = page.get_pixmap(matrix=matrix, alpha=False)
-            data = np.frombuffer(pixmap.tobytes("png"), dtype=np.uint8)
-            image = cv2.imdecode(data, cv2.IMREAD_COLOR)
-            if image is None:
-                raise ValueError("PDF 페이지를 이미지로 변환하지 못했습니다.")
-            images.append(image)
-    finally:
-        doc.close()
-
-    return images
 
 
 def bytes_to_image(image_bytes: bytes) -> np.ndarray:
@@ -122,69 +101,3 @@ def preprocess_ocr_crop_stages(image: np.ndarray) -> dict[str, np.ndarray]:
     }
 
 
-def preprocess_ocr_crop(image: np.ndarray) -> np.ndarray:
-    """잘라낸 영역을 전처리하고 최종 OCR용 BGR 이미지를 반환한다."""
-    return preprocess_ocr_crop_stages(image)["bgr"]
-
-
-def mask_sensitive_regions(
-    image: np.ndarray,
-    regions: list[MaskRegion],
-    padding_ratio: float = 0.005,
-) -> np.ndarray:
-    """지정 영역을 복구 불가능한 검정 픽셀로 덮는다."""
-    masked = image.copy()
-    height, width = masked.shape[:2]
-    padding = max(2, round(min(width, height) * padding_ratio))
-
-    for region in regions:
-        left, top, right, bottom = _region_to_pixels(
-            region,
-            width=width,
-            height=height,
-        )
-        left = max(0, left - padding)
-        top = max(0, top - padding)
-        right = min(width - 1, right + padding)
-        bottom = min(height - 1, bottom + padding)
-
-        if right <= left or bottom <= top:
-            raise ValueError("마스킹 영역이 이미지 범위를 벗어났습니다.")
-
-        cv2.rectangle(
-            masked,
-            (left, top),
-            (right, bottom),
-            (0, 0, 0),
-            thickness=-1,
-        )
-
-    return masked
-
-
-def _region_to_pixels(
-    region: MaskRegion,
-    width: int,
-    height: int,
-) -> tuple[int, int, int, int]:
-    coordinates = (region.x1, region.y1, region.x2, region.y2)
-
-    if region.referenceWidth is not None and region.referenceHeight is not None:
-        scale_x = width / region.referenceWidth
-        scale_y = height / region.referenceHeight
-        return (
-            round(region.x1 * scale_x),
-            round(region.y1 * scale_y),
-            round(region.x2 * scale_x),
-            round(region.y2 * scale_y),
-        )
-
-    if max(coordinates) <= 1:
-        return (
-            round(region.x1 * width),
-            round(region.y1 * height),
-            round(region.x2 * width),
-            round(region.y2 * height),
-        )
-
-    return tuple(round(value) for value in coordinates)
