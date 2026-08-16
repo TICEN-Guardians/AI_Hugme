@@ -1,40 +1,16 @@
 from datetime import datetime, timezone
 from decimal import Decimal
-
 from fastapi import APIRouter, HTTPException, status
 from app.config import settings
-from app.diagnosis.external.address.client import (
-    AddressApiError,
-    AddressClient,
-)
-from app.diagnosis.external.address.mapper import (
-    AddressMappingError,
-)
-from app.diagnosis.external.address.service import (
-    AddressResolutionError,
-    AddressService,
-)
-from app.diagnosis.external.building_ledger.client import (
-    BuildingLedgerApiError,
-    BuildingLedgerClient,
-)
-from app.diagnosis.external.building_ledger.selector import (
-    BuildingLedgerSelectionError,
-)
-from app.diagnosis.external.building_ledger.service import (
-    BuildingLedgerService,
-)
-from app.diagnosis.housing_type_resolver import (
-    HousingTypeResolutionError,
-)
-from app.diagnosis.property_address_service import (
-    PropertyAddressError,
-    PropertyAddressService,
-)
-from app.diagnosis.property_search_service import (
-    PropertySearchService,
-)
-
+from app.diagnosis.external.address.client import (AddressApiError,AddressClient,)
+from app.diagnosis.external.address.mapper import (AddressMappingError,)
+from app.diagnosis.external.address.service import (AddressResolutionError,AddressService,)
+from app.diagnosis.external.building_ledger.client import (BuildingLedgerApiError,BuildingLedgerClient,)
+from app.diagnosis.external.building_ledger.selector import (BuildingLedgerSelectionError,)
+from app.diagnosis.external.building_ledger.service import (BuildingLedgerService,)
+from app.diagnosis.housing_type_resolver import (HousingTypeResolutionError,)
+from app.diagnosis.property_address_service import (PropertyAddressError,PropertyAddressService,)
+from app.diagnosis.property_search_service import (PropertySearchService,)
 from app.diagnosis.schemas import (
     DiagnosisRequest,
     DiagnosisResponse,
@@ -51,7 +27,7 @@ from app.diagnosis.schemas import (
     PropertySearchRequest,
     PropertySearchResponse,
 )
-
+from app.diagnosis.external.building_ledger.unit_area import (UnitAreaError,)
 
 router = APIRouter(
     prefix="/internal/v1",
@@ -190,6 +166,7 @@ def resolve_property(
             .resolve(
                 address=request.address,
                 dong_name=request.dong_name,
+                ho_name=request.ho_name,
             )
         )
     except (
@@ -200,19 +177,38 @@ def resolve_property(
         BuildingLedgerSelectionError,
         HousingTypeResolutionError,
         PropertyAddressError,
+        UnitAreaError,
     ) as exc:
         raise property_http_exception(exc) from None
 
+    unit_area = result.unit_area
+
     return PropertyResolveResponse(
         normalizedAddress=result.address.road_address,
-        buildingName=(
-            result.address.building_name or ""
-        ),
+        buildingName=result.address.building_name or "",
         dongName=result.dong_name,
+        hoName=result.ho_name,
         housingType=result.housing_type,
         contractAreaRequired=(
             result.housing_type
             == HousingType.DETACHED_MULTI
+        ),
+        unitNumberRequired=(
+            result.housing_type
+            != HousingType.DETACHED_MULTI
+            and not result.ho_name
+        ),
+        exclusiveArea=(
+            unit_area.exclusive_area
+            if unit_area else None
+        ),
+        commonArea=(
+            unit_area.common_area
+            if unit_area else None
+        ),
+        totalArea=(
+            unit_area.total_area
+            if unit_area else None
         ),
     )
 

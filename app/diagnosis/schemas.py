@@ -74,6 +74,12 @@ class PropertyResolveRequest(ApiModel):
             max_length=100,
             description="사용자가 선택한 동",
         )
+    ho_name: str | None = Field(
+        default=None,
+        alias="hoName",
+        min_length=1,
+        max_length=100,
+    )
 
 class PropertyResolveResponse(ApiModel):
     normalized_address: str = Field(
@@ -86,6 +92,10 @@ class PropertyResolveResponse(ApiModel):
     dong_name: str = Field(
             alias="dongName",
     )
+    ho_name: str | None = Field(
+        default=None,
+        alias="hoName",
+    )
     housing_type: HousingType = Field(
         alias="housingType",
         description="서비스 모델 기준 주택유형",
@@ -94,7 +104,21 @@ class PropertyResolveResponse(ApiModel):
         alias="contractAreaRequired",
         description="계약 대상 공간 면적의 사용자 입력 필요 여부",
     )
-
+    unit_number_required: bool = Field(
+        alias="unitNumberRequired",
+    )
+    exclusive_area: float | None = Field(
+        default=None,
+        alias="exclusiveArea",
+    )
+    common_area: float | None = Field(
+        default=None,
+        alias="commonArea",
+    )
+    total_area: float | None = Field(
+        default=None,
+        alias="totalArea",
+    )
 
 class DiagnosisRequest(ApiModel):
     analysis_id: int = Field(
@@ -121,6 +145,7 @@ class DiagnosisRequest(ApiModel):
         gt=0,
         description="전세 단독·다가구의 계약 대상 공간 면적, ㎡",
     )
+
 
 
 class PropertySummary(ApiModel):

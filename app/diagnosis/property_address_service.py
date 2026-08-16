@@ -1,19 +1,11 @@
 from dataclasses import dataclass
 
-from app.diagnosis.external.address.schemas import (
-    ResolvedAddress,
-)
-from app.diagnosis.external.address.service import (
-    AddressService,
-)
-from app.diagnosis.external.building_ledger.service import (
-    BuildingLedgerResult,
-    BuildingLedgerService,
-)
-from app.diagnosis.housing_type_resolver import (
-    HousingTypeResolver,
-)
+from app.diagnosis.external.address.schemas import (ResolvedAddress,)
+from app.diagnosis.external.address.service import (AddressService,)
+from app.diagnosis.external.building_ledger.service import (BuildingLedgerResult,BuildingLedgerService,)
+from app.diagnosis.housing_type_resolver import (HousingTypeResolver,)
 from app.diagnosis.schemas import HousingType
+from app.diagnosis.external.building_ledger.unit_area import (UnitAreaResult,)
 
 class PropertyAddressError(ValueError):
     pass
@@ -24,7 +16,9 @@ class PropertyAddressResult:
     address: ResolvedAddress
     building_ledger: BuildingLedgerResult
     dong_name: str
+    ho_name: str | None
     housing_type: HousingType
+    unit_area: UnitAreaResult | None
 
 
 class PropertyAddressService:
@@ -42,6 +36,7 @@ class PropertyAddressService:
         self,
         address: str,
         dong_name: str,
+        ho_name: str | None = None,
     ) -> PropertyAddressResult:
         resolved = self.address_service.resolve(address)
 
@@ -63,14 +58,31 @@ class PropertyAddressService:
             )
         )
         housing_type = HousingTypeResolver.resolve(
-                    ledger_result.selected_title
+            ledger_result.selected_title
         )
+
+        unit_area = None
+
+        if (
+            housing_type != HousingType.DETACHED_MULTI
+            and ho_name
+        ):
+            unit_area = (
+                self.building_ledger_service
+                .fetch_unit_area(
+                    key=resolved.building_ledger_key,
+                    dong_name=dong_name,
+                    ho_name=ho_name,
+                )
+            )
 
         return PropertyAddressResult(
             address=resolved,
             building_ledger=ledger_result,
             dong_name=dong_name,
+            ho_name=ho_name,
             housing_type=housing_type,
+            unit_area=unit_area,
         )
 
     @classmethod
