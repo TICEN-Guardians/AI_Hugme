@@ -13,6 +13,7 @@ from app.schemas import (
 )
 
 from app.ocr.router import router as ocr_router
+from app.ocr_checklist.router import router as ocr_checklist_router
 
 from app.ocr.ocr_engine import load_engine
 
@@ -47,6 +48,11 @@ app = FastAPI(
     title="HUGME AI API",
     version="1.0.0",
     lifespan=lifespan,
+)
+app.include_router(
+    ocr_checklist_router,
+    prefix="/checklist",
+    tags=["ocr-checklist"],
 )
 
 app.include_router(ocr_router, prefix="/register", tags=["ocr"])
