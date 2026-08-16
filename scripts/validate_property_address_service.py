@@ -11,7 +11,11 @@ from app.diagnosis.property_address_service import (
     PropertyAddressError,
     PropertyAddressService,
 )
-
+from app.diagnosis.housing_type_resolver import (
+    HousingTypeResolutionError,
+    HousingTypeResolver,
+)
+from app.diagnosis.schemas import HousingType
 
 class FakeAddressService:
     def resolve(
@@ -60,6 +64,8 @@ class FakeBuildingLedgerService:
             selected_title={
                 "bldNm": "테스트아파트101동",
                 "dongNm": "101",
+                "mainPurpsCdNm": "공동주택",
+                "etcPurps": "아파트",
             },
             title_count=2,
         )
@@ -95,6 +101,10 @@ def main() -> None:
         ]
         == "101"
     )
+    assert (
+            result.housing_type
+            == HousingType.APARTMENT
+    )
 
     try:
         service.resolve(
@@ -107,12 +117,56 @@ def main() -> None:
         raise AssertionError(
             "존재하지 않는 동 차단 실패"
         )
+        apartment = HousingTypeResolver.resolve(
+            {
+                "mainPurpsCdNm": "공동주택",
+                "etcPurps": "아파트",
+            }
+        )
+        villa = HousingTypeResolver.resolve(
+            {
+                "mainPurpsCdNm": "공동주택",
+                "etcPurps": "다세대주택",
+            }
+        )
+        officetel = HousingTypeResolver.resolve(
+            {
+                "mainPurpsCdNm": "업무시설",
+                "etcPurps": "오피스텔",
+            }
+        )
+        detached = HousingTypeResolver.resolve(
+            {
+                "mainPurpsCdNm": "단독주택",
+                "etcPurps": "다가구주택",
+            }
+        )
+
+        assert apartment == HousingType.APARTMENT
+        assert villa == HousingType.VILLA
+        assert officetel == HousingType.OFFICETEL
+        assert detached == HousingType.DETACHED_MULTI
+
+        try:
+            HousingTypeResolver.resolve(
+                {
+                    "mainPurpsCdNm": "공동주택",
+                    "etcPurps": "",
+                }
+            )
+        except HousingTypeResolutionError:
+            pass
+        else:
+            raise AssertionError(
+                "불명확한 주택유형 차단 실패"
+            )
 
     print("PropertyAddressService 검증 완료")
     print("- 주소 해석 연결")
     print("- 동 후보 검증")
     print("- 건축물대장 조회 연결")
     print("- Feature 변환 결과 수신")
+    print("- 주택유형 판정")
 
 
 if __name__ == "__main__":

@@ -10,7 +10,10 @@ from app.diagnosis.external.building_ledger.service import (
     BuildingLedgerResult,
     BuildingLedgerService,
 )
-
+from app.diagnosis.housing_type_resolver import (
+    HousingTypeResolver,
+)
+from app.diagnosis.schemas import HousingType
 
 class PropertyAddressError(ValueError):
     pass
@@ -21,6 +24,7 @@ class PropertyAddressResult:
     address: ResolvedAddress
     building_ledger: BuildingLedgerResult
     dong_name: str
+    housing_type: HousingType
 
 
 class PropertyAddressService:
@@ -58,11 +62,15 @@ class PropertyAddressService:
                 dong_name=dong_name,
             )
         )
+        housing_type = HousingTypeResolver.resolve(
+                    ledger_result.selected_title
+        )
 
         return PropertyAddressResult(
             address=resolved,
             building_ledger=ledger_result,
             dong_name=dong_name,
+            housing_type=housing_type,
         )
 
     @classmethod

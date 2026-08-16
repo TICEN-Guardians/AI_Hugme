@@ -34,20 +34,57 @@ class RiskGrade(str, Enum):
     HIGH = "HIGH"
     CRITICAL = "CRITICAL"
 
+class PropertySearchRequest(ApiModel):
+    address: str = Field(
+        min_length=1,
+        max_length=500,
+        description="사용자가 입력한 주소",
+    )
+
+class PropertyCandidate(ApiModel):
+    building_name: str = Field(
+        alias="buildingName",
+    )
+    dong_name: str = Field(
+        alias="dongName",
+    )
+    housing_type: HousingType = Field(
+        alias="housingType",
+    )
+
+class PropertySearchResponse(ApiModel):
+    normalized_address: str = Field(
+        alias="normalizedAddress",
+    )
+    building_name: str | None = Field(
+        default=None,
+        alias="buildingName",
+    )
+    candidates: list[PropertyCandidate]
 
 class PropertyResolveRequest(ApiModel):
     address: str = Field(
         min_length=1,
         max_length=500,
         description="사용자가 입력한 전체 주소",
-        examples=["서울특별시 송파구 잠실동 123 101동 402호"],
     )
-
+    dong_name: str = Field(
+            alias="dongName",
+            min_length=1,
+            max_length=100,
+            description="사용자가 선택한 동",
+        )
 
 class PropertyResolveResponse(ApiModel):
     normalized_address: str = Field(
         alias="normalizedAddress",
         description="표준화된 주소",
+    )
+    building_name: str = Field(
+            alias="buildingName",
+    )
+    dong_name: str = Field(
+            alias="dongName",
     )
     housing_type: HousingType = Field(
         alias="housingType",

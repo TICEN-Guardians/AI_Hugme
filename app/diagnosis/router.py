@@ -2,6 +2,38 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException, status
+from app.config import settings
+from app.diagnosis.external.address.client import (
+    AddressApiError,
+    AddressClient,
+)
+from app.diagnosis.external.address.mapper import (
+    AddressMappingError,
+)
+from app.diagnosis.external.address.service import (
+    AddressResolutionError,
+    AddressService,
+)
+from app.diagnosis.external.building_ledger.client import (
+    BuildingLedgerApiError,
+    BuildingLedgerClient,
+)
+from app.diagnosis.external.building_ledger.selector import (
+    BuildingLedgerSelectionError,
+)
+from app.diagnosis.external.building_ledger.service import (
+    BuildingLedgerService,
+)
+from app.diagnosis.housing_type_resolver import (
+    HousingTypeResolutionError,
+)
+from app.diagnosis.property_address_service import (
+    PropertyAddressError,
+    PropertyAddressService,
+)
+from app.diagnosis.property_search_service import (
+    PropertySearchService,
+)
 
 from app.diagnosis.schemas import (
     DiagnosisRequest,
@@ -15,6 +47,9 @@ from app.diagnosis.schemas import (
     RiskGrade,
     RiskSummary,
     ValuationSummary,
+    PropertyCandidate,
+    PropertySearchRequest,
+    PropertySearchResponse,
 )
 
 
@@ -22,7 +57,70 @@ router = APIRouter(
     prefix="/internal/v1",
     tags=["diagnosis"],
 )
+def create_address_service() -> AddressService:
+    client = AddressClient(
+        confirmation_key=(
+            settings.address_api_confirmation_key
+        ),
+        timeout=settings.address_api_timeout,
+    )
 
+    return AddressService(client)
+
+
+def create_building_ledger_client(
+) -> BuildingLedgerClient:
+    return BuildingLedgerClient(
+        service_key=settings.building_ledger_api_key,
+        timeout=settings.building_ledger_api_timeout,
+    )
+
+
+def create_property_search_service(
+) -> PropertySearchService:
+    return PropertySearchService(
+        address_service=create_address_service(),
+        building_ledger_client=(
+            create_building_ledger_client()
+        ),
+    )
+
+
+def create_property_address_service(
+) -> PropertyAddressService:
+    ledger_client = create_building_ledger_client()
+
+    return PropertyAddressService(
+        address_service=create_address_service(),
+        building_ledger_service=(
+            BuildingLedgerService(ledger_client)
+        ),
+    )
+
+def property_http_exception(
+    exc: Exception,
+) -> HTTPException:
+    external_errors = (
+        AddressApiError,
+        BuildingLedgerApiError,
+    )
+
+    if isinstance(exc, external_errors):
+        return HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "code": "PROPERTY_EXTERNAL_API_ERROR",
+                "message": str(exc),
+            },
+        )
+
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail={
+            "code": "PROPERTY_RESOLUTION_FAILED",
+            "message": str(exc),
+        },
+    )
 
 def resolve_dummy_housing_type(address: str) -> HousingType:
     """
@@ -41,31 +139,82 @@ def resolve_dummy_housing_type(address: str) -> HousingType:
 
     return HousingType.APARTMENT
 
+@router.post(
+    "/properties/search",
+    response_model=PropertySearchResponse,
+    status_code=status.HTTP_200_OK,
+)
+def search_property(
+    request: PropertySearchRequest,
+) -> PropertySearchResponse:
+    try:
+        result = (
+            create_property_search_service()
+            .search(request.address)
+        )
+    except (
+        AddressApiError,
+        AddressMappingError,
+        AddressResolutionError,
+        BuildingLedgerApiError,
+    ) as exc:
+        raise property_http_exception(exc) from None
+
+    candidates = [
+        PropertyCandidate(
+            buildingName=item.building_name,
+            dongName=item.dong_name,
+            housingType=item.housing_type,
+        )
+        for item in result.candidates
+    ]
+
+    return PropertySearchResponse(
+        normalizedAddress=result.normalized_address,
+        buildingName=result.building_name,
+        candidates=candidates,
+    )
+
 
 @router.post(
     "/properties/resolve",
     response_model=PropertyResolveResponse,
     status_code=status.HTTP_200_OK,
 )
-async def resolve_property(
+def resolve_property(
     request: PropertyResolveRequest,
 ) -> PropertyResolveResponse:
-    """
-    주소 입력 단계에서 호출하는 dummy Property Resolve 앤드포인트.
-    이 단계에서는 Diagnosis와 analysisId를 생성하지 않음.
-    """
-
-    normalized_address = " ".join(request.address.strip().split())
-    housing_type = resolve_dummy_housing_type(normalized_address)
+    try:
+        result = (
+            create_property_address_service()
+            .resolve(
+                address=request.address,
+                dong_name=request.dong_name,
+            )
+        )
+    except (
+        AddressApiError,
+        AddressMappingError,
+        AddressResolutionError,
+        BuildingLedgerApiError,
+        BuildingLedgerSelectionError,
+        HousingTypeResolutionError,
+        PropertyAddressError,
+    ) as exc:
+        raise property_http_exception(exc) from None
 
     return PropertyResolveResponse(
-        normalizedAddress=normalized_address,
-        housingType=housing_type,
+        normalizedAddress=result.address.road_address,
+        buildingName=(
+            result.address.building_name or ""
+        ),
+        dongName=result.dong_name,
+        housingType=result.housing_type,
         contractAreaRequired=(
-            housing_type == HousingType.DETACHED_MULTI
+            result.housing_type
+            == HousingType.DETACHED_MULTI
         ),
     )
-
 
 @router.post(
     "/diagnoses/analyze",
