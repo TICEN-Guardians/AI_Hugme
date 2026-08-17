@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from decimal import Decimal
 from fastapi import APIRouter, HTTPException, status
 from app.config import settings
 from app.diagnosis.external.address.client import (AddressApiError,AddressClient,)
@@ -9,6 +8,7 @@ from app.diagnosis.external.building_ledger.client import (BuildingLedgerApiErro
 from app.diagnosis.external.building_ledger.selector import (BuildingLedgerSelectionError,)
 from app.diagnosis.external.building_ledger.service import (BuildingLedgerService,)
 from app.diagnosis.housing_type_resolver import (HousingTypeResolutionError,)
+from app.diagnosis.diagnosis_dependencies import get_diagnosis_pipeline
 from app.diagnosis.property_address_service import (PropertyAddressError,PropertyAddressService,)
 from app.diagnosis.property_search_service import (PropertySearchService,)
 from app.diagnosis.schemas import (
@@ -20,8 +20,9 @@ from app.diagnosis.schemas import (
     PropertyResolveRequest,
     PropertyResolveResponse,
     PropertySummary,
-    RiskGrade,
+    RiskBreakdown,
     RiskSummary,
+    ValuationReliability,
     ValuationSummary,
     PropertyCandidate,
     PropertySearchRequest,
@@ -97,23 +98,6 @@ def property_http_exception(
             "message": str(exc),
         },
     )
-
-def resolve_dummy_housing_type(address: str) -> HousingType:
-    """
-    실제 PropertyResolver가 구현되기 전까지 임시 판별 함수로 사용 중 .
-    실제 서비스에서는 주소 정규화 및 건축물대장 조회로 교체할 예정.
-    """
-
-    if "오피스텔" in address:
-        return HousingType.OFFICETEL
-
-    if "연립" in address or "다세대" in address or "빌라" in address:
-        return HousingType.VILLA
-
-    if "단독" in address or "다가구" in address:
-        return HousingType.DETACHED_MULTI
-
-    return HousingType.APARTMENT
 
 @router.post(
     "/properties/search",
@@ -217,102 +201,91 @@ def resolve_property(
     response_model=DiagnosisResponse,
     status_code=status.HTTP_200_OK,
 )
-async def analyze_diagnosis(
+def analyze_diagnosis(
     request: DiagnosisRequest,
 ) -> DiagnosisResponse:
-    """
-    SpringBoot-FastAPI 연결 확인을 위한 dummy Analyze 앤드포인트.
-    실제 구현 단계에서 고정값 생성 부분을 DiagnosisPipeline 호출로
-    교체할 예정.
-    """
-
-    housing_type = resolve_dummy_housing_type(request.address)
-
-    if (
-        housing_type == HousingType.DETACHED_MULTI
-        and request.contract_area is None
-    ):
+    try:
+        result = get_diagnosis_pipeline().analyze(request)
+    except (
+        AddressApiError,
+        AddressMappingError,
+        AddressResolutionError,
+        BuildingLedgerApiError,
+        BuildingLedgerSelectionError,
+        HousingTypeResolutionError,
+        PropertyAddressError,
+        UnitAreaError,
+    ) as exc:
+        raise property_http_exception(exc) from None
+    except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={
-                "code": "CONTRACT_AREA_REQUIRED",
-                "message": (
-                    "전세 단독·다가구 분석에는 "
-                    "계약 대상 공간의 면적이 필요합니다."
-                ),
+                "code": "DIAGNOSIS_ANALYSIS_FAILED",
+                "message": str(exc),
             },
-        )
+        ) from None
 
-    estimated_sale_price = 300_000_000
-    estimated_lease_price = 220_000_000
-    active_mortgage_amount = 50_000_000
-
-    lease_price_gap_rate = calculate_rate(
-        numerator=request.deposit - estimated_lease_price,
-        denominator=estimated_lease_price,
-    )
-
-    collateral_burden_amount = (
-        active_mortgage_amount + request.deposit
-    )
-
-    collateral_burden_rate = calculate_rate(
-        numerator=collateral_burden_amount,
-        denominator=estimated_sale_price,
-    )
-
-    remaining_collateral_capacity = (
-        estimated_sale_price - collateral_burden_amount
-    )
+    indicators = result.risk_indicators
+    score = result.risk_score
+    final_grade = result.forced_warning.grade
+    reliability = valuation_reliability(result)
 
     return DiagnosisResponse(
         analysisId=request.analysis_id,
         status=DiagnosisStatus.COMPLETED,
         analyzedAt=datetime.now(timezone.utc),
         property=PropertySummary(
-            normalizedAddress=" ".join(
-                request.address.strip().split()
-            ),
-            housingType=housing_type,
+            normalizedAddress=result.normalized_address,
+            housingType=result.housing_type,
         ),
         valuation=ValuationSummary(
-            estimatedSalePrice=estimated_sale_price,
-            estimatedLeasePrice=estimated_lease_price,
+            estimatedSalePrice=result.estimated_sale_price,
+            estimatedLeasePrice=result.estimated_lease_price,
         ),
         indicators=IndicatorSummary(
-            leasePriceGapRate=lease_price_gap_rate,
-            collateralBurdenRate=collateral_burden_rate,
-            remainingCollateralCapacity=(
-                remaining_collateral_capacity
+            leaseToSaleRate=round(indicators.lease_to_sale_rate * 100, 2),
+            leasePriceGapRate=round(indicators.lease_price_gap_rate * 100, 2),
+            collateralBurdenAmount=indicators.collateral_burden_amount,
+            collateralBurdenRate=(
+                round(indicators.collateral_burden_rate * 100, 2)
+                if indicators.collateral_burden_rate is not None
+                else None
+            ),
+            recoverableAmount=indicators.recoverable_amount,
+            depositShortfall=indicators.deposit_shortfall,
+            remainingCollateralCapacity=(indicators.remaining_collateral_capacity),
+            priceDropScenarios=(
+                {
+                    name: round(value * 100, 2)
+                    for name, value in indicators.price_drop_scenarios.items()
+                }
+                if indicators.price_drop_scenarios is not None
+                else None
             ),
         ),
         risk=RiskSummary(
-            score=35,
-            grade=RiskGrade.LOW,
+            score=score.total,
+            grade=final_grade,
+            breakdown=RiskBreakdown(
+                underwater=score.underwater,
+                rollover=score.rollover,
+                property=score.property,
+                market=score.market,
+            ),
         ),
-        forcedWarnings=[],
-        missingChecks=[],
-        report=(
-            "SpringBoot와 FastAPI 사이의 진단 API 연결 확인하려고 임시 분석 결과 넣음 제거 예정."
-        ),
+        forcedWarnings=list(result.forced_warning.warnings),
+        missingChecks=list(result.missing_checks),
+        valuationReliability=reliability,
+        dataWarnings=list(result.warnings),
+        fallbackFeatures=list(result.fallback_features),
+        report=f"규칙 기반 전세 위험등급은 {final_grade.value}입니다.",
     )
 
 
-def calculate_rate(
-    numerator: int | Decimal,
-    denominator: int | Decimal,
-) -> float:
-    """
-    비율을 백분율 값으로 변환함. 예: 0.8333 → 83.33
-    """
-
-    if denominator <= 0:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={
-                "code": "INVALID_RATE_DENOMINATOR",
-                "message": "비율 계산 기준값은 0보다 커야 합니다.",
-            },
-        )
-
-    return round(float(numerator / denominator) * 100, 2)
+def valuation_reliability(result) -> ValuationReliability:
+    if result.fallback_features:
+        return ValuationReliability.LOW
+    if result.warnings:
+        return ValuationReliability.MEDIUM
+    return ValuationReliability.HIGH

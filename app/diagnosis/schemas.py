@@ -34,6 +34,68 @@ class RiskGrade(str, Enum):
     HIGH = "HIGH"
     CRITICAL = "CRITICAL"
 
+
+class ValuationReliability(str, Enum):
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+
+
+class RegistryParseStatus(str, Enum):
+    SUCCESS = "SUCCESS"
+    PARTIAL = "PARTIAL"
+    NEEDS_REVIEW = "NEEDS_REVIEW"
+    FAILED = "FAILED"
+
+
+class RegistryParseConfidence(str, Enum):
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+    UNKNOWN = "UNKNOWN"
+
+
+class TriStateValue(str, Enum):
+    TRUE = "TRUE"
+    FALSE = "FALSE"
+    UNKNOWN = "UNKNOWN"
+
+
+class WatchlistCheckStatus(str, Enum):
+    CHECKED = "CHECKED"
+    NOT_CHECKED = "NOT_CHECKED"
+    ERROR = "ERROR"
+
+
+class RegistryRiskPayload(ApiModel):
+    parse_status: RegistryParseStatus = Field(alias="parseStatus")
+    parse_confidence: RegistryParseConfidence = Field(alias="parseConfidence")
+    total_active_max_claim_amount: int | None = Field(
+        default=None,
+        alias="totalActiveMaxClaimAmount",
+        ge=0,
+    )
+    seizure: TriStateValue
+    provisional_seizure: TriStateValue = Field(alias="provisionalSeizure")
+    provisional_disposition: TriStateValue = Field(alias="provisionalDisposition")
+    auction_commenced: TriStateValue = Field(alias="auctionCommenced")
+    trust_registration: TriStateValue = Field(alias="trustRegistration")
+    has_active_jeonse_right: TriStateValue = Field(alias="hasActiveJeonseRight")
+    has_active_leasehold_registration: TriStateValue = Field(
+        alias="hasActiveLeaseholdRegistration"
+    )
+    owner_matches_contract_party: TriStateValue = Field(
+        default=TriStateValue.UNKNOWN,
+        alias="ownerMatchesContractParty",
+    )
+    watchlist_check_status: WatchlistCheckStatus = Field(
+        alias="watchlistCheckStatus"
+    )
+    bad_landlord_matched: bool | None = Field(
+        default=None,
+        alias="badLandlordMatched",
+    )
+
 class PropertySearchRequest(ApiModel):
     address: str = Field(
         min_length=1,
@@ -131,6 +193,19 @@ class DiagnosisRequest(ApiModel):
         max_length=500,
         description="진단 대상 전체 주소",
     )
+    dong_name: str = Field(
+        alias="dongName",
+        min_length=1,
+        max_length=100,
+        description="주소 검색 후 사용자가 선택한 동",
+    )
+    ho_name: str | None = Field(
+        default=None,
+        alias="hoName",
+        min_length=1,
+        max_length=100,
+        description="공동주택 전유부 조회용 호",
+    )
     deposit: int = Field(
         gt=0,
         description="계약 예정 전세보증금, 원 단위",
@@ -144,6 +219,10 @@ class DiagnosisRequest(ApiModel):
         alias="contractArea",
         gt=0,
         description="전세 단독·다가구의 계약 대상 공간 면적, ㎡",
+    )
+    registry_risk: RegistryRiskPayload | None = Field(
+        default=None,
+        alias="registryRisk",
     )
 
 
@@ -167,18 +246,34 @@ class ValuationSummary(ApiModel):
 
 
 class IndicatorSummary(ApiModel):
+    lease_to_sale_rate: float = Field(alias="leaseToSaleRate")
     lease_price_gap_rate: float = Field(
         alias="leasePriceGapRate",
         description="AI 예상 전세시세 대비 계약보증금 차이율",
     )
-    collateral_burden_rate: float = Field(
+    collateral_burden_amount: int | None = Field(
+        alias="collateralBurdenAmount"
+    )
+    collateral_burden_rate: float | None = Field(
         alias="collateralBurdenRate",
         description="매매가 대비 근저당과 계약보증금의 담보부담률",
     )
-    remaining_collateral_capacity: int = Field(
+    recoverable_amount: int | None = Field(alias="recoverableAmount")
+    deposit_shortfall: int | None = Field(alias="depositShortfall")
+    remaining_collateral_capacity: int | None = Field(
         alias="remainingCollateralCapacity",
         description="AI 예상 매매가에서 담보부담금액을 뺀 금액, 원",
     )
+    price_drop_scenarios: dict[str, float] | None = Field(
+        alias="priceDropScenarios"
+    )
+
+
+class RiskBreakdown(ApiModel):
+    underwater: int = Field(description="담보부족 위험(깡통전세), 47점 만점")
+    rollover: int = Field(description="역전세 위험, 35점 만점")
+    property: int = Field(description="주택 특성 위험, 10점 만점")
+    market: int = Field(description="시장 상황 위험, 8점 만점")
 
 
 class RiskSummary(ApiModel):
@@ -188,6 +283,7 @@ class RiskSummary(ApiModel):
         description="서비스 위험점수이며 전세사기 확률이 아님",
     )
     grade: RiskGrade
+    breakdown: RiskBreakdown
 
 
 class DiagnosisResponse(ApiModel):
@@ -207,5 +303,16 @@ class DiagnosisResponse(ApiModel):
     missing_checks: list[str] = Field(
         default_factory=list,
         alias="missingChecks",
+    )
+    valuation_reliability: ValuationReliability = Field(
+        alias="valuationReliability"
+    )
+    data_warnings: list[str] = Field(
+        default_factory=list,
+        alias="dataWarnings",
+    )
+    fallback_features: list[str] = Field(
+        default_factory=list,
+        alias="fallbackFeatures",
     )
     report: str

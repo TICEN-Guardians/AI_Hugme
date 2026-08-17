@@ -1,6 +1,7 @@
 import sqlite3
 from pathlib import Path
 
+from app.diagnosis.market_database import get_market_connection
 from app.diagnosis.property_matcher import (
     PropertyMatcher,
     PropertyReference,
@@ -74,6 +75,64 @@ class SqlitePropertyReferenceStore:
         return [_to_reference(row) for row in rows]
 
 
+class PostgresPropertyReferenceStore:
+    def find_parcel(
+        self,
+        district: str,
+        bun: str,
+        ji: str,
+        housing_type: HousingType,
+    ) -> list[PropertyReference]:
+        return self._find(
+            """
+            WHERE district = %s AND bun = %s AND ji = %s
+              AND housing_type = %s
+            """,
+            (district, bun, ji, housing_type.value),
+        )
+
+    def find_district(
+        self,
+        district: str,
+        housing_type: HousingType,
+    ) -> list[PropertyReference]:
+        return self._find(
+            "WHERE district = %s AND housing_type = %s",
+            (district, housing_type.value),
+        )
+
+    def find_type(
+        self,
+        housing_type: HousingType,
+    ) -> list[PropertyReference]:
+        return self._find(
+            "WHERE housing_type = %s",
+            (housing_type.value,),
+        )
+
+    @staticmethod
+    def _find(
+        where: str,
+        parameters: tuple[str, ...],
+    ) -> list[PropertyReference]:
+        query = f"""
+            SELECT district, bun, ji, housing_type,
+                   model_name, source_building_name, sample_count
+            FROM ai_property_reference
+            {where}
+        """
+        connection = get_market_connection()
+
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(query, parameters)
+                rows = cursor.fetchall()
+        finally:
+            connection.close()
+
+        return [_to_reference(row) for row in rows]
+
+
 def validate_property_reference(path: str | Path) -> None:
     database = Path(path)
 
@@ -125,3 +184,7 @@ def _to_reference(row: tuple[object, ...]) -> PropertyReference:
 
 def load_property_matcher(path: str | Path) -> PropertyMatcher:
     return PropertyMatcher(SqlitePropertyReferenceStore(path))
+
+
+def load_postgres_property_matcher() -> PropertyMatcher:
+    return PropertyMatcher(PostgresPropertyReferenceStore())
