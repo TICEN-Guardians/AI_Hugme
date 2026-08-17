@@ -166,10 +166,17 @@ def resolve_property(
         raise property_http_exception(exc) from None
 
     unit_area = result.unit_area
+    selected_building_name = str(
+        result.building_ledger.selected_title.get("bldNm")
+        or ""
+    ).strip() or None
 
     return PropertyResolveResponse(
         normalizedAddress=result.address.road_address,
-        buildingName=result.address.building_name or "",
+        buildingName=(
+            result.address.building_name
+            or selected_building_name
+        ),
         dongName=result.dong_name,
         hoName=result.ho_name,
         housingType=result.housing_type,

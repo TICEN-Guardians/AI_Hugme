@@ -15,8 +15,8 @@ from app.diagnosis.schemas import HousingType
 
 @dataclass(frozen=True)
 class PropertyCandidateResult:
-    building_name: str
-    dong_name: str
+    building_name: str | None
+    dong_name: str | None
     housing_type: HousingType
 
 
@@ -101,23 +101,26 @@ class PropertySearchService:
                 title.get("dongNm") or ""
             ).strip()
 
-            if not dong_name:
+            if (
+                not dong_name
+                and housing_type != HousingType.DETACHED_MULTI
+            ):
                 continue
 
-            key = (dong_name, housing_type)
+            key = (dong_name or actual_name, housing_type)
 
             results[key] = PropertyCandidateResult(
                 building_name=str(
                     title.get("bldNm") or ""
-                ).strip(),
-                dong_name=dong_name,
+                ).strip() or None,
+                dong_name=dong_name or None,
                 housing_type=housing_type,
             )
 
         return tuple(
             sorted(
                 results.values(),
-                key=lambda item: item.dong_name,
+                key=lambda item: item.dong_name or "",
             )
         )
 

@@ -172,7 +172,10 @@ async def register_check(
             candidates = match.candidates
             check_status = "CHECKED"
         except Exception:
-            # DB 장애 등으로 조회 자체가 실패한 경우.
+            logger.exception(
+                "악성임대인 조회 실패 (analysis_id=%s)",
+                analysis_id,
+            )
             status = "UNKNOWN"
             candidates = []
             check_status = "ERROR"

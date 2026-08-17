@@ -118,7 +118,11 @@ def _to_int(s: str) -> int | None:
 
 def _classify(head_collapsed: str, body_raw: str) -> tuple[str, list[str]]:
     """항목 텍스트로 (분류, 말소 참조 순위번호 리스트) 반환."""
-    if "말소" in head_collapsed:
+    body_collapsed = re.sub(r"\s+", "", body_raw)
+    if re.search(
+        r"\d+(?:-\d+)?번.*?(?:등기)?말소",
+        body_collapsed,
+    ):
         refs = _CANCEL_REFS.findall(body_raw[:120])
         return "CANCELLATION", refs
     for keyword, kind in _PURPOSE_PRIORITY:
@@ -238,15 +242,22 @@ def extract_rights(text: str) -> dict:
     # ----- 을구 -----
     if sections["eul"] is not None:
         eul_text = sections["eul"]
-        if _NO_RECORDS.search(eul_text):
+        eul_entries = parse_section_entries(
+            eul_text,
+            "을구",
+        )
+
+        if (
+            not eul_entries
+            and _NO_RECORDS.search(eul_text[:500])
+        ):
             result["eul_section_status"] = "CONFIRMED_NONE"
             result["flags"]["has_active_jeonse_right"] = "FALSE"
             result["flags"]["has_leasehold_registration"] = "FALSE"
             result["active_mortgage_count"] = 0
             result["total_active_max_claim_amount"] = 0
-        else:
+        elif eul_entries:
             result["eul_section_status"] = "EXTRACTED"
-            eul_entries = parse_section_entries(eul_text, "을구")
             result["rights"].extend(eul_entries)
 
             mortgages = []

@@ -10,8 +10,8 @@ class BuildingLedgerSelector:
     def select_title(
         cls,
         items: list[dict[str, Any]],
-        building_name: str,
-        dong_name: str,
+        building_name: str | None,
+        dong_name: str | None,
     ) -> dict[str, Any]:
         candidates = [
             item
@@ -19,23 +19,19 @@ class BuildingLedgerSelector:
             if cls._is_main_building(item)
         ]
 
-        candidates = [
-            item
-            for item in candidates
-            if cls._matches_building(
-                item,
-                building_name,
-            )
-        ]
+        if cls._clean(building_name):
+            candidates = [
+                item
+                for item in candidates
+                if cls._matches_building(item, building_name)
+            ]
 
-        candidates = [
-            item
-            for item in candidates
-            if cls._matches_dong(
-                item,
-                dong_name,
-            )
-        ]
+        if cls._dong(dong_name):
+            candidates = [
+                item
+                for item in candidates
+                if cls._matches_dong(item, dong_name)
+            ]
 
         if not candidates:
             raise BuildingLedgerSelectionError(
@@ -63,7 +59,7 @@ class BuildingLedgerSelector:
     def _matches_building(
         cls,
         item: dict[str, Any],
-        building_name: str,
+        building_name: str | None,
     ) -> bool:
         expected = cls._clean(building_name)
         actual = cls._clean(item.get("bldNm"))
@@ -74,7 +70,7 @@ class BuildingLedgerSelector:
     def _matches_dong(
         cls,
         item: dict[str, Any],
-        dong_name: str,
+        dong_name: str | None,
     ) -> bool:
         expected = cls._dong(dong_name)
         actual = cls._dong(item.get("dongNm"))

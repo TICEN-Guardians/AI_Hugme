@@ -3,8 +3,6 @@ from urllib.parse import unquote
 import requests
 
 from app.diagnosis.external.building_ledger.schemas import (BuildingLedgerKey,)
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 
 class BuildingLedgerApiError(RuntimeError):
@@ -118,42 +116,49 @@ class BuildingLedgerClient:
         if extra_params:
             params.update(extra_params)
 
-        try:
-            for attempt in range(2):
+        error: requests.RequestException | ValueError | None = None
+
+        for attempt in range(2):
+            try:
                 response = self.session.get(
                     f"{self.BASE_URL}/{endpoint}",
                     params=params,
                     timeout=self.timeout,
                 )
                 response.raise_for_status()
-
-                try:
-                    payload = response.json()
+                payload = response.json()
+                return self._items(payload)
+            except requests.HTTPError as exc:
+                error = exc
+                status = exc.response.status_code
+                if status not in {429, 500, 502, 503, 504}:
                     break
-                except requests.exceptions.JSONDecodeError:
-                    if attempt == 1:
-                        raise
-        except requests.RequestException as exc:
-            status = (
-                exc.response.status_code
-                if exc.response is not None
-                else "연결 오류"
-            )
+            except (
+                requests.ConnectionError,
+                requests.Timeout,
+                requests.exceptions.JSONDecodeError,
+            ) as exc:
+                error = exc
+            except ValueError as exc:
+                error = exc
+                break
 
-            error_name = type(exc).__name__
+            if attempt == 1:
+                break
 
-            raise BuildingLedgerApiError(
-                f"건축물대장 API 호출 실패: "
-                f"{endpoint}, page={page_no}, "
-                f"{status}, {error_name}"
-            ) from None
+        status = (
+            error.response.status_code
+            if isinstance(error, requests.RequestException)
+            and error.response is not None
+            else "연결 오류"
+        )
+        error_name = type(error).__name__
 
-        except ValueError:
-            raise BuildingLedgerApiError(
-                "건축물대장 JSON 변환 실패"
-            ) from None
-
-        return self._items(payload)
+        raise BuildingLedgerApiError(
+            f"건축물대장 API 호출 실패: "
+            f"{endpoint}, page={page_no}, "
+            f"{status}, {error_name}"
+        ) from None
 
     @staticmethod
     def _items(
@@ -236,22 +241,4 @@ class BuildingLedgerClient:
 
     @staticmethod
     def _session() -> requests.Session:
-        session = requests.Session()
-        retry = Retry(
-            total=2,
-            connect=2,
-            read=2,
-            status=2,
-            backoff_factor=0.3,
-            status_forcelist=(
-                429,
-                500,
-                502,
-                503,
-                504,
-            ),
-            allowed_methods={"GET"},
-        )
-        adapter = HTTPAdapter(max_retries=retry)
-        session.mount("https://", adapter)
-        return session
+        return requests.Session()

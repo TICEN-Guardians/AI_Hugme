@@ -28,8 +28,8 @@ class BuildingLedgerService:
     def fetch(
         self,
         key: BuildingLedgerKey,
-        building_name: str,
-        dong_name: str,
+        building_name: str | None,
+        dong_name: str | None,
     ) -> BuildingLedgerResult:
         titles = self.client.get_title(key)
 

@@ -15,7 +15,7 @@ class PropertyAddressError(ValueError):
 class PropertyAddressResult:
     address: ResolvedAddress
     building_ledger: BuildingLedgerResult
-    dong_name: str
+    dong_name: str | None
     ho_name: str | None
     housing_type: HousingType
     unit_area: UnitAreaResult | None
@@ -35,15 +35,10 @@ class PropertyAddressService:
     def resolve(
         self,
         address: str,
-        dong_name: str,
+        dong_name: str | None,
         ho_name: str | None = None,
     ) -> PropertyAddressResult:
         resolved = self.address_service.resolve(address)
-
-        if not resolved.building_name:
-            raise PropertyAddressError(
-                "주소 검색 결과의 건물명 누락"
-            )
 
         self._validate_dong(
             requested=dong_name,
@@ -60,6 +55,12 @@ class PropertyAddressService:
         housing_type = HousingTypeResolver.resolve(
             ledger_result.selected_title
         )
+
+        if (
+            housing_type != HousingType.DETACHED_MULTI
+            and not dong_name
+        ):
+            raise PropertyAddressError("공동주택 동 정보 필요")
 
         unit_area = None
 
@@ -88,15 +89,13 @@ class PropertyAddressService:
     @classmethod
     def _validate_dong(
         cls,
-        requested: str,
+        requested: str | None,
         available: tuple[str, ...],
     ) -> None:
         requested_value = cls._dong(requested)
 
         if not requested_value:
-            raise PropertyAddressError(
-                "동 정보 누락"
-            )
+            return
 
         if not available:
             return
@@ -113,8 +112,8 @@ class PropertyAddressService:
             )
 
     @staticmethod
-    def _dong(value: str) -> str:
-        text = "".join(value.split()).lower()
+    def _dong(value: str | None) -> str:
+        text = "".join((value or "").split()).lower()
 
         if text.endswith("동"):
             return text[:-1]

@@ -104,10 +104,12 @@ class PropertySearchRequest(ApiModel):
     )
 
 class PropertyCandidate(ApiModel):
-    building_name: str = Field(
+    building_name: str | None = Field(
+        default=None,
         alias="buildingName",
     )
-    dong_name: str = Field(
+    dong_name: str | None = Field(
+        default=None,
         alias="dongName",
     )
     housing_type: HousingType = Field(
@@ -130,11 +132,11 @@ class PropertyResolveRequest(ApiModel):
         max_length=500,
         description="사용자가 입력한 전체 주소",
     )
-    dong_name: str = Field(
+    dong_name: str | None = Field(
+            default=None,
             alias="dongName",
-            min_length=1,
             max_length=100,
-            description="사용자가 선택한 동",
+            description="공동주택에서 사용자가 선택한 동",
         )
     ho_name: str | None = Field(
         default=None,
@@ -148,10 +150,12 @@ class PropertyResolveResponse(ApiModel):
         alias="normalizedAddress",
         description="표준화된 주소",
     )
-    building_name: str = Field(
+    building_name: str | None = Field(
+            default=None,
             alias="buildingName",
     )
-    dong_name: str = Field(
+    dong_name: str | None = Field(
+            default=None,
             alias="dongName",
     )
     ho_name: str | None = Field(
@@ -193,11 +197,11 @@ class DiagnosisRequest(ApiModel):
         max_length=500,
         description="진단 대상 전체 주소",
     )
-    dong_name: str = Field(
+    dong_name: str | None = Field(
+        default=None,
         alias="dongName",
-        min_length=1,
         max_length=100,
-        description="주소 검색 후 사용자가 선택한 동",
+        description="공동주택에서 주소 검색 후 선택한 동",
     )
     ho_name: str | None = Field(
         default=None,
