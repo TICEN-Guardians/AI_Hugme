@@ -290,6 +290,50 @@ class RiskSummary(ApiModel):
     breakdown: RiskBreakdown
 
 
+class ReportMetric(ApiModel):
+    key: str
+    label: str
+    value: int | float | str | None
+    unit: str | None = None
+
+
+class ReportSection(ApiModel):
+    key: str
+    title: str
+    description: str
+    metrics: list[ReportMetric] = Field(default_factory=list)
+
+
+class ReportNotice(ApiModel):
+    code: str
+    title: str
+    description: str
+    severity: str
+
+
+class PriceScenarioPoint(ApiModel):
+    label: str
+    price_drop_rate: int = Field(alias="priceDropRate")
+    collateral_burden_rate: float = Field(alias="collateralBurdenRate")
+
+
+class ReportExplanation(ApiModel):
+    summary: str
+    key_findings: list[str] = Field(alias="keyFindings")
+    cautions: list[str]
+    recommended_actions: list[str] = Field(alias="recommendedActions")
+    generated_by: str = Field(alias="generatedBy")
+
+
+class ReportDetail(ApiModel):
+    title: str
+    grade_label: str = Field(alias="gradeLabel")
+    sections: list[ReportSection]
+    notices: list[ReportNotice]
+    price_scenarios: list[PriceScenarioPoint] = Field(alias="priceScenarios")
+    explanation: ReportExplanation
+
+
 class DiagnosisResponse(ApiModel):
     analysis_id: int = Field(alias="analysisId")
     status: DiagnosisStatus
@@ -320,3 +364,4 @@ class DiagnosisResponse(ApiModel):
         alias="fallbackFeatures",
     )
     report: str
+    report_detail: ReportDetail = Field(alias="reportDetail")

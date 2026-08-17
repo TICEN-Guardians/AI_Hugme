@@ -29,6 +29,8 @@ from app.diagnosis.schemas import (
     PropertySearchResponse,
 )
 from app.diagnosis.external.building_ledger.unit_area import (UnitAreaError,)
+from app.diagnosis.report_builder import build_report_detail
+from app.diagnosis.report_explainer import explain_report
 
 router = APIRouter(
     prefix="/internal/v1",
@@ -237,6 +239,9 @@ def analyze_diagnosis(
     score = result.risk_score
     final_grade = result.forced_warning.grade
     reliability = valuation_reliability(result)
+    report_detail = explain_report(
+        build_report_detail(request, result, reliability)
+    )
 
     return DiagnosisResponse(
         analysisId=request.analysis_id,
@@ -287,6 +292,7 @@ def analyze_diagnosis(
         dataWarnings=list(result.warnings),
         fallbackFeatures=list(result.fallback_features),
         report=f"규칙 기반 전세 위험등급은 {final_grade.value}입니다.",
+        reportDetail=report_detail,
     )
 
 
