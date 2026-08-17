@@ -1,4 +1,4 @@
-"""주택임대차계약서 한 페이지 OCR + LLM 체크리스트 라우터."""
+"""개인정보를 마스킹한 계약서 이미지 LLM 체크리스트 라우터."""
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from starlette.concurrency import run_in_threadpool
@@ -9,16 +9,15 @@ from .schemas import OcrChecklistResponse
 
 
 router = APIRouter()
-
-OCR_CROP_MIN_WIDTH = 1800
-OCR_CROP_MAX_SCALE = 2.0
+TOP_OCR_MIN_WIDTH = 1400
+TOP_OCR_MAX_SCALE = 1.5
 
 
 @router.post("/ocr", response_model=OcrChecklistResponse)
 async def ocr_checklist(
     files: list[UploadFile] = File(...),
 ):
-    """한 이미지를 위·아래 절반으로 나눠 OCR한 뒤 항상 LLM으로 분석한다."""
+    """상단 OCR 텍스트와 마스킹된 하단 이미지를 LLM으로 분석한다."""
     if len(files) != 1:
         raise HTTPException(
             status_code=400,
@@ -26,40 +25,40 @@ async def ocr_checklist(
         )
 
     image = await read_one_image(files[0])
+
     prepared = file_utils.deskew_document(image)
 
-    crop_specs = ("top", "bottom")
-    ocr_texts: list[str] = []
+    top_third, _ = file_utils.split_top_third_bottom_two_thirds(prepared)
+    top_ocr_input = file_utils.upscale_small_document(
+        top_third,
+        min_width=TOP_OCR_MIN_WIDTH,
+        max_scale=TOP_OCR_MAX_SCALE,
+    )
+    masked_full_image = file_utils.mask_sensitive_party_fields(prepared)
+    _, masked_bottom = file_utils.split_top_third_bottom_two_thirds(
+        masked_full_image
+    )
+    masked_image_bytes = file_utils.image_to_jpeg_bytes(masked_bottom)
 
-    for half in crop_specs:
-        cropped = file_utils.crop_horizontal_half(
-            prepared,
-            half=half,
+    try:
+        top_ocr_text = await run_in_threadpool(
+            ocr_engine.run_ocr,
+            top_ocr_input,
         )
-        upscaled = file_utils.upscale_small_document(
-            cropped,
-            min_width=OCR_CROP_MIN_WIDTH,
-            max_scale=OCR_CROP_MAX_SCALE,
-        )
-        stages = file_utils.preprocess_ocr_crop_stages(upscaled)
-        ocr_input = stages["bgr"]
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-        try:
-            text = await run_in_threadpool(ocr_engine.run_ocr, ocr_input)
-        except RuntimeError as exc:
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
-        ocr_texts.append(text)
-
-    if not any(text.strip() for text in ocr_texts):
+    if not top_ocr_text.strip():
         raise HTTPException(
             status_code=422,
-            detail="두 영역에서 OCR 텍스트를 추출하지 못했습니다.",
+            detail="계약서 위쪽 영역에서 OCR 텍스트를 추출하지 못했습니다.",
         )
 
     try:
-        fields = await llm_parser.extract_fields_from_ocr_text(
-            top_half_text=ocr_texts[0],
-            bottom_half_text=ocr_texts[1],
+        fields = await llm_parser.extract_fields_from_hybrid_input(
+            top_ocr_text=top_ocr_text,
+            image_bytes=masked_image_bytes,
+            media_type="image/jpeg",
         )
     except RuntimeError as exc:
         status_code = 503 if "OPENAI_API_KEY" in str(exc) else 502
@@ -67,7 +66,7 @@ async def ocr_checklist(
     except Exception as exc:
         raise HTTPException(
             status_code=502,
-            detail=f"OCR 텍스트 LLM 분석에 실패했습니다: {exc}",
+            detail=f"OCR 텍스트·마스킹 이미지 LLM 분석에 실패했습니다: {exc}",
         ) from exc
 
     # contractAddress는 판독 불가 시 null을 허용하고, 나머지는 누락되거나
