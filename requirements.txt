@@ -20,3 +20,4 @@ rapidocr>=3.9.0
 onnxruntime
 pymupdf==1.25.2
 opencv-python-headless
+openai>=2.0.0,<3.0.0
