@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Protocol
 
 from app.diagnosis.external.address.schemas import ResolvedAddress
 from app.diagnosis.schemas import HousingType
@@ -23,14 +24,40 @@ class PropertyReference:
 class PropertyMatchResult:
     model_name: str
     method: str
-    warning: str | None = None
+    warnings: tuple[str, ...] = ()
+
+
+class PropertyReferenceLookup(Protocol):
+    def find_parcel(
+        self,
+        district: str,
+        bun: str,
+        ji: str,
+        housing_type: HousingType,
+    ) -> list[PropertyReference]: ...
+
+    def find_district(
+        self,
+        district: str,
+        housing_type: HousingType,
+    ) -> list[PropertyReference]: ...
+
+    def find_type(
+        self,
+        housing_type: HousingType,
+    ) -> list[PropertyReference]: ...
 
 
 class PropertyMatcher:
     def __init__(
         self,
-        references: list[PropertyReference],
+        references: list[PropertyReference] | PropertyReferenceLookup,
     ) -> None:
+        self.lookup = (
+            references
+            if not isinstance(references, list)
+            else None
+        )
         self.index: dict[
             tuple[str, str, str, HousingType],
             list[PropertyReference],
@@ -44,7 +71,9 @@ class PropertyMatcher:
             list[PropertyReference],
         ] = {}
 
-        for reference in references:
+        for reference in (
+            references if isinstance(references, list) else []
+        ):
             if reference.sample_count <= 0:
                 raise PropertyMatchError("표본 수 오류")
 
@@ -72,6 +101,7 @@ class PropertyMatcher:
         self,
         address: ResolvedAddress,
         housing_type: HousingType,
+        observed_building_name: str | None = None,
     ) -> PropertyMatchResult:
         ledger_key = address.building_ledger_key
         key = self._key(
@@ -80,12 +110,22 @@ class PropertyMatcher:
             ledger_key.ji,
             housing_type,
         )
-        references = self.index.get(key, [])
+        references = (
+            self.lookup.find_parcel(
+                key[0],
+                key[1],
+                key[2],
+                housing_type,
+            )
+            if self.lookup
+            else self.index.get(key, [])
+        )
 
         if not references:
             return self._missing_parcel(
                 address,
                 housing_type,
+                observed_building_name,
             )
 
         names = {
@@ -100,15 +140,17 @@ class PropertyMatcher:
                 method="parcel",
             )
 
-        building_name = self._name(address.building_name)
+        actual_name = str(
+            observed_building_name
+            or address.building_name
+            or ""
+        ).strip()
+        building_name = self._name(actual_name)
         matched_names = {
             reference.model_name.strip()
             for reference in references
             if building_name
-            and building_name in {
-                self._name(reference.model_name),
-                self._name(reference.source_building_name),
-            }
+            and building_name == self._name(reference.model_name)
         }
 
         if matched_names:
@@ -121,56 +163,83 @@ class PropertyMatcher:
             return PropertyMatchResult(
                 model_name=self._rank(matched),
                 method="building_name",
-                warning=(
-                    "PROPERTY_REFERENCE_AMBIGUOUS"
-                    if len(matched_names) > 1
-                    else None
+            )
+
+        if actual_name:
+            return PropertyMatchResult(
+                model_name=actual_name,
+                method="ambiguous_observed_name",
+                warnings=(
+                    "PROPERTY_REFERENCE_AMBIGUOUS",
+                    "UNSEEN_PROPERTY_NAME",
                 ),
             )
 
         return PropertyMatchResult(
             model_name=self._rank(references),
             method="parcel_frequency",
-            warning="PROPERTY_REFERENCE_AMBIGUOUS",
+            warnings=(
+                "PROPERTY_REFERENCE_AMBIGUOUS",
+                "PROPERTY_NAME_FALLBACK",
+            ),
         )
 
     def _missing_parcel(
         self,
         address: ResolvedAddress,
         housing_type: HousingType,
+        observed_building_name: str | None,
     ) -> PropertyMatchResult:
-        name = str(address.building_name or "").strip()
+        name = str(
+            observed_building_name
+            or address.building_name
+            or ""
+        ).strip()
 
         if name:
             return PropertyMatchResult(
                 model_name=name,
-                method="address_name_fallback",
-                warning="PROPERTY_REFERENCE_NOT_FOUND",
+                method="unseen_address_name",
+                warnings=("UNSEEN_PROPERTY_NAME",),
             )
 
         district_key = (
             self._district(address.district),
             housing_type,
         )
-        district_references = self.district_index.get(
-            district_key,
-            [],
+        district_references = (
+            self.lookup.find_district(
+                district_key[0],
+                housing_type,
+            )
+            if self.lookup
+            else self.district_index.get(district_key, [])
         )
 
         if district_references:
             return PropertyMatchResult(
                 model_name=self._rank(district_references),
                 method="district_frequency",
-                warning="PROPERTY_REFERENCE_NOT_FOUND",
+                warnings=(
+                    "PROPERTY_REFERENCE_NOT_FOUND",
+                    "PROPERTY_NAME_FALLBACK",
+                ),
             )
 
-        type_references = self.type_index.get(housing_type, [])
+        type_references = (
+            self.lookup.find_type(housing_type)
+            if self.lookup
+            else self.type_index.get(housing_type, [])
+        )
 
         if type_references:
             return PropertyMatchResult(
                 model_name=self._rank(type_references),
                 method="type_frequency",
-                warning="PROPERTY_REFERENCE_NOT_FOUND",
+                warnings=(
+                    "PROPERTY_REFERENCE_NOT_FOUND",
+                    "PROPERTY_NAME_FALLBACK",
+                ),
             )
 
         raise PropertyMatchError("주택유형 기준정보 없음")

@@ -7,3 +7,4 @@ venv/
 .model_cache/
 .idea/
 .vscode
+*.sqlite3
