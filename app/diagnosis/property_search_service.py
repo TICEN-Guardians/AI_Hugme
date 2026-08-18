@@ -51,6 +51,7 @@ class PropertySearchService:
         candidates = self._candidates(
             titles=titles,
             building_name=resolved.building_name,
+            available_dongs=resolved.available_dongs,
         )
 
         return PropertySearchResult(
@@ -64,6 +65,7 @@ class PropertySearchService:
         cls,
         titles: list[dict],
         building_name: str | None,
+        available_dongs: tuple[str, ...],
     ) -> tuple[PropertyCandidateResult, ...]:
         results: dict[
             tuple[str, HousingType],
@@ -103,6 +105,7 @@ class PropertySearchService:
 
             if (
                 not dong_name
+                and available_dongs
                 and housing_type != HousingType.DETACHED_MULTI
             ):
                 continue

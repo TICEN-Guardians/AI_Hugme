@@ -28,7 +28,7 @@ NOTICE_TEXT = {
         "계약 상대방과 등기부의 현재 소유자가 일치하지 않습니다.",
         "CRITICAL",
     ),
-    "BAD_LANDLORD_MATCHED": (
+    "BAD_LANDLORD_MATCH": (
         "악성임대인 명단 일치",
         "현재 소유자가 악성임대인 확인 대상과 일치합니다.",
         "CRITICAL",

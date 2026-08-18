@@ -51,7 +51,7 @@ class BuildingLedgerClient:
         dong_name: str,
         ho_name: str,
     ) -> list[dict[str, Any]]:
-        dong = self._suffix(dong_name, "동", False)
+        dong = self._suffix(dong_name, "동", False, required=False)
         ho = self._suffix(ho_name, "호", True)
         matched: list[dict[str, Any]] = []
         found = False
@@ -198,17 +198,20 @@ class BuildingLedgerClient:
         )
     @staticmethod
     def _suffix(
-        value: str,
+        value: str | None,
         suffix: str,
         keep_suffix: bool,
+        required: bool = True,
     ) -> str:
-        text = "".join(value.split())
+        text = "".join(str(value or "").split())
 
         if text.endswith(suffix):
             text = text[:-1]
 
         if not text:
-            raise ValueError(f"{suffix} 정보 누락")
+            if required:
+                raise ValueError(f"{suffix} 정보 누락")
+            return ""
 
         return text + suffix if keep_suffix else text
 
