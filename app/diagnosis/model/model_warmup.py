@@ -13,10 +13,15 @@ THREAD_NAME = "diagnosis-model-prefetch"
 
 
 def prefetch_enabled() -> bool:
-    return os.getenv(
+    value = os.getenv(
         "DIAGNOSIS_MODEL_PREFETCH",
-        "true",
-    ).strip().lower() == "true"
+        "",
+    ).strip().lower()
+
+    if not value:
+        return True
+
+    return value not in {"false", "0", "no", "off"}
 
 
 def prefetch_model_files() -> None:
