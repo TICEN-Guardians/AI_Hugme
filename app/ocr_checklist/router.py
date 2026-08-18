@@ -41,7 +41,7 @@ async def ocr_checklist(
     masked_image_bytes = file_utils.image_to_jpeg_bytes(masked_bottom)
 
     try:
-        top_ocr_text = await run_in_threadpool(
+        top_ocr_text, _ = await run_in_threadpool(
             ocr_engine.run_ocr,
             top_ocr_input,
         )
