@@ -31,7 +31,7 @@ def explain_report(report: ReportDetail) -> ReportDetail:
             timeout=float(os.getenv("DIAGNOSIS_LLM_TIMEOUT", "30")),
         )
         response = client.responses.parse(
-            model=os.getenv("DIAGNOSIS_LLM_MODEL", "gpt-5.6-luna"),
+            model=os.getenv("DIAGNOSIS_LLM_MODEL", "gpt-4o-mini"),
             instructions=(
                 "전세 위험도 진단 결과를 한국어로 설명한다. "
                 "숫자, 등급, 경고를 변경하거나 새로운 사실을 만들지 않는다. "

@@ -13,7 +13,7 @@ INFRA_ENV_PATH = PROJECT_ROOT.parent / "Infra_Hugme" / ".env"
 
 load_dotenv(INFRA_ENV_PATH)
 
-MODEL = "gpt-5.6-luna"
+MODEL = "gpt-4o-mini"
 
 _client: AsyncOpenAI | None = None
 
