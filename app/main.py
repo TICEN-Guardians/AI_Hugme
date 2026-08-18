@@ -13,6 +13,7 @@ from app.schemas import (
 )
 
 from app.ocr.router import router as ocr_router
+from app.diagnosis.router import router as diagnosis_router
 from app.ocr_checklist.router import router as ocr_checklist_router
 
 from app.ocr.ocr_engine import load_engine
@@ -56,6 +57,7 @@ app.include_router(
 )
 
 app.include_router(ocr_router, prefix="/register", tags=["ocr"])
+app.include_router(diagnosis_router)
 
 @app.get("/health")
 async def health():

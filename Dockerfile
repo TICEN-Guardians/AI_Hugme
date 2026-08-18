@@ -16,6 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir opencv-python-headless
 
 COPY app ./app
+COPY artifacts/contracts ./artifacts/contracts
 
 EXPOSE 8000
 

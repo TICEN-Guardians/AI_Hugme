@@ -107,6 +107,10 @@ class OcrRegisterResponse(BaseModel):
     parsed_at: str | None = Field(None, description="파싱 수행 시각")
     raw_address: str | None = Field(None, description="등본 표기 부동산 소재지 (소유자 주소와 다름)")
     property_address: str | None = Field(None, description="raw_address와 동일")
+    dong_name: str | None = Field(None, description="표제부 소재지에서 추출한 동")
+    floor: int | None = Field(None, description="표제부 전유부분에서 추출한 층")
+    ho_name: str | None = Field(None, description="표제부에서 추출한 호")
+    exclusive_area: float | None = Field(None, description="표제부 전유부분 면적, ㎡")
     issue_date: str | None = Field(None, description="열람/발급일 (YYYY-MM-DD) - 등본 최신성 판단용")
     current_owners: List[CurrentOwner] = Field(
         default_factory=list,

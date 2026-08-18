@@ -10,11 +10,28 @@ import psycopg2
 load_dotenv()
 
 DB_CONFIG = {
-    "host": os.environ.get("DB_HOST", "localhost"),
-    "port": int(os.environ.get("DB_PORT", "5432")),
-    "dbname": os.environ.get("DB_NAME", "postgres"),
-    "user": os.environ.get("DB_USER", "postgres"),
-    "password": os.environ.get("DB_PASSWORD", "postgres"),
+    "host": os.environ.get(
+        "POSTGRES_HOST",
+        os.environ.get("DB_HOST", "localhost"),
+    ),
+    "port": int(
+        os.environ.get(
+            "POSTGRES_PORT",
+            os.environ.get("DB_PORT", "5432"),
+        )
+    ),
+    "dbname": os.environ.get(
+        "POSTGRES_DB",
+        os.environ.get("DB_NAME", "postgres"),
+    ),
+    "user": os.environ.get(
+        "POSTGRES_USER",
+        os.environ.get("DB_USER", "postgres"),
+    ),
+    "password": os.environ.get(
+        "POSTGRES_PASSWORD",
+        os.environ.get("DB_PASSWORD", "postgres"),
+    ),
 }
 
 def get_connection():
