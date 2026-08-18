@@ -17,6 +17,7 @@ from app.diagnosis.router import router as diagnosis_router
 from app.ocr_checklist.router import router as ocr_checklist_router
 
 from app.ocr.ocr_engine import load_engine
+from app.diagnosis.model.model_warmup import start_model_prefetch
 
 
 
@@ -40,6 +41,7 @@ async def lifespan(app: FastAPI):
         logger.warning(
             "Model is not available yet. FastAPI starts without a model."
         )
+    start_model_prefetch()
     yield
     # Application 종료 시 Model 참조를 정리한다.
     ml["model"] = None
