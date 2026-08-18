@@ -59,6 +59,7 @@ class PropertyAddressService:
         if (
             housing_type != HousingType.DETACHED_MULTI
             and not dong_name
+            and resolved.available_dongs
         ):
             raise PropertyAddressError("공동주택 동 정보 필요")
 

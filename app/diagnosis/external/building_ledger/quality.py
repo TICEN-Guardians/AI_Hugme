@@ -7,10 +7,6 @@ class BuildingLedgerQuality:
     blocking_errors: tuple[str, ...]
     warnings: tuple[str, ...]
 
-    @property
-    def is_usable(self) -> bool:
-        return not self.blocking_errors
-
 
 class BuildingLedgerQualityGate:
     @classmethod
