@@ -224,6 +224,15 @@ class DiagnosisRequest(ApiModel):
         gt=0,
         description="전세 단독·다가구의 계약 대상 공간 면적, ㎡",
     )
+    exclusive_area: Decimal | None = Field(
+        default=None,
+        alias="exclusiveArea",
+        gt=0,
+        description="공동주택 사용자가 확인한 전용면적, ㎡",
+    )
+    floor: int = Field(
+        description="사용자가 확인한 계약 대상 층",
+    )
     registry_risk: RegistryRiskPayload | None = Field(
         default=None,
         alias="registryRisk",

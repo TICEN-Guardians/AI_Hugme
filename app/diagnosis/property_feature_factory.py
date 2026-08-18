@@ -27,14 +27,22 @@ class PropertyFeatureFactory:
         contract_date: date,
         matched_name: str | None = None,
         contract_area: Decimal | None = None,
+        exclusive_area: Decimal | None = None,
+        floor: int | None = None,
         land_right_area: Decimal | None = None,
     ) -> FeatureInput:
         cls._validate_model_type(result, model_key)
         detail = {}
 
-        if result.unit_area:
+        if exclusive_area is not None:
+            cls._put_area(detail, "전용면적(㎡)", exclusive_area)
+        elif result.unit_area:
+            detail["전용면적(㎡)"] = result.unit_area.exclusive_area
+
+        if floor is not None:
+            detail["층"] = floor
+        elif result.unit_area:
             detail.update({
-                "전용면적(㎡)": result.unit_area.exclusive_area,
                 "층": result.unit_area.floor,
             })
 

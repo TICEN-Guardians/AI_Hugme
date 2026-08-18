@@ -5,7 +5,7 @@ from app.diagnosis.external.address.service import (AddressService,)
 from app.diagnosis.external.building_ledger.service import (BuildingLedgerResult,BuildingLedgerService,)
 from app.diagnosis.housing_type_resolver import (HousingTypeResolver,)
 from app.diagnosis.schemas import HousingType
-from app.diagnosis.external.building_ledger.unit_area import (UnitAreaResult,)
+from app.diagnosis.external.building_ledger.unit_area import (UnitAreaError,UnitAreaResult,)
 
 class PropertyAddressError(ValueError):
     pass
@@ -68,14 +68,19 @@ class PropertyAddressService:
             housing_type != HousingType.DETACHED_MULTI
             and ho_name
         ):
-            unit_area = (
-                self.building_ledger_service
-                .fetch_unit_area(
-                    key=resolved.building_ledger_key,
-                    dong_name=dong_name,
-                    ho_name=ho_name,
+            try:
+                unit_area = (
+                    self.building_ledger_service
+                    .fetch_unit_area(
+                        key=resolved.building_ledger_key,
+                        dong_name=dong_name,
+                        ho_name=ho_name,
+                    )
                 )
-            )
+            except UnitAreaError:
+                # 일부 건축물은 공공데이터 전유부에 동·호 면적이 없다.
+                # 주소와 주택유형 확인은 유지하고, 추론 시 Feature 기본값을 쓴다.
+                unit_area = None
 
         return PropertyAddressResult(
             address=resolved,

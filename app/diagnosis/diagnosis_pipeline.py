@@ -82,6 +82,12 @@ class DiagnosisPipeline:
         ):
             raise ValueError("단독·다가구 계약면적 필요")
 
+        if (
+            resolved.housing_type != HousingType.DETACHED_MULTI
+            and request.exclusive_area is None
+        ):
+            raise ValueError("공동주택 전용면적 필요")
+
         model_type = MODEL_TYPES[resolved.housing_type]
         sale_key = f"매매_{model_type}"
         lease_key = f"전세_{model_type}"
@@ -108,6 +114,8 @@ class DiagnosisPipeline:
             contract_date=request.contract_date,
             matched_name=matched_name,
             contract_area=request.contract_area,
+            exclusive_area=request.exclusive_area,
+            floor=request.floor,
             land_right_area=land_right_area,
         )
         lease_input = PropertyFeatureFactory.create(
@@ -116,6 +124,8 @@ class DiagnosisPipeline:
             contract_date=request.contract_date,
             matched_name=matched_name,
             contract_area=request.contract_area,
+            exclusive_area=request.exclusive_area,
+            floor=request.floor,
             land_right_area=land_right_area,
         )
         sale_market = self.market_feature_service.enrich(
