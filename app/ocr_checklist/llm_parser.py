@@ -7,7 +7,6 @@ from openai import AsyncOpenAI
 
 from .schemas import LlmChecklistResult
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 INFRA_ENV_PATH = PROJECT_ROOT.parent / "Infra_Hugme" / ".env"
 
@@ -141,7 +140,6 @@ officetelResidentialMarked, landlordProxyContract.
             }
         ],
         text_format=LlmChecklistResult,
-        prompt_cache_options={"mode": "explicit"},
         store=False,
     )
     parsed = response.output_parsed
