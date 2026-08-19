@@ -1,8 +1,10 @@
+from app.diagnosis.risk_rule import RiskRule
 from app.diagnosis.schemas import (
     DiagnosisRequest,
     PriceScenarioPoint,
     ReportDetail,
     ReportExplanation,
+    ReportFinding,
     ReportMetric,
     ReportNotice,
     ReportSection,
@@ -61,10 +63,81 @@ NOTICE_TEXT = {
 }
 
 MISSING_TEXT = {
-    "OWNER_MATCH": "계약 상대방과 등기 소유자의 일치 여부를 확인해 주세요.",
-    "BAD_LANDLORD_WATCHLIST": "악성임대인 명단 조회 결과를 확인해 주세요.",
-    "ACTIVE_MAX_CLAIM_AMOUNT": "활성 근저당 채권최고액을 확인해 주세요.",
+    "OWNER_MATCH": (
+        "임대인·소유자 일치 미확인",
+        "계약 상대방과 등기 소유자의 일치 여부를 확인해 주세요.",
+    ),
+    "BAD_LANDLORD_WATCHLIST": (
+        "악성임대인 명단 조회 미완료",
+        "악성임대인 명단 조회 결과를 확인해 주세요.",
+    ),
+    "ACTIVE_MAX_CLAIM_AMOUNT": (
+        "근저당 채권최고액 미확인",
+        "활성 근저당 채권최고액을 확인해 주세요.",
+    ),
+    "SEIZURE": (
+        "압류 여부 미확인",
+        "등기부에서 압류 기록 여부를 확인하지 못했습니다.",
+    ),
+    "PROVISIONAL_SEIZURE": (
+        "가압류 여부 미확인",
+        "등기부에서 가압류 기록 여부를 확인하지 못했습니다.",
+    ),
+    "PROVISIONAL_DISPOSITION": (
+        "가처분 여부 미확인",
+        "등기부에서 가처분 기록 여부를 확인하지 못했습니다.",
+    ),
+    "AUCTION_COMMENCED": (
+        "경매개시 여부 미확인",
+        "등기부에서 경매개시 기록 여부를 확인하지 못했습니다.",
+    ),
+    "TRUST_REGISTRATION": (
+        "신탁등기 여부 미확인",
+        "등기부에서 신탁등기 여부를 확인하지 못했습니다.",
+    ),
+    "SENIOR_LEASE_RIGHT": (
+        "선순위 전세권 여부 미확인",
+        "등기부에서 선순위 전세권·임차권등기 여부를 확인하지 못했습니다.",
+    ),
 }
+
+
+PRICE_DROP_SCENARIOS = {
+    "drop_0": (0, "현재 시세"),
+    "drop_10": (10, "매매가 10% 하락"),
+    "drop_20": (20, "매매가 20% 하락"),
+}
+
+
+def price_scenario(
+    key: str,
+    burden_rate: float,
+    estimated_sale_price: int,
+) -> PriceScenarioPoint:
+    drop_rate, label = PRICE_DROP_SCENARIOS.get(key, (0, key))
+
+    return PriceScenarioPoint(
+        label=label,
+        priceDropRate=drop_rate,
+        estimatedSalePrice=round(
+            estimated_sale_price * (1 - drop_rate / 100)
+        ),
+        collateralBurdenRate=round(burden_rate * 100, 2),
+        verdict=RiskRule.dtv_verdict(burden_rate),
+    )
+
+
+def missing_notice(code: str) -> ReportNotice:
+    title, description = MISSING_TEXT.get(
+        code,
+        ("추가 확인 필요", f"{code} 항목을 확인해 주세요."),
+    )
+    return ReportNotice(
+        code=code,
+        title=title,
+        description=description,
+        severity="INFO",
+    )
 
 
 def build_report_detail(request: DiagnosisRequest, result, reliability) -> ReportDetail:
@@ -72,13 +145,7 @@ def build_report_detail(request: DiagnosisRequest, result, reliability) -> Repor
     final_grade = result.forced_warning.grade
     notices = [notice(code) for code in result.forced_warning.warnings]
     notices.extend(
-        ReportNotice(
-            code=code,
-            title="추가 확인 필요",
-            description=MISSING_TEXT.get(code, f"{code} 항목을 확인해 주세요."),
-            severity="INFO",
-        )
-        for code in result.missing_checks
+        missing_notice(code) for code in result.missing_checks
     )
 
     sections = [
@@ -118,12 +185,8 @@ def build_report_detail(request: DiagnosisRequest, result, reliability) -> Repor
     ]
 
     scenarios = [
-        PriceScenarioPoint(
-            label={"drop_0": "현재 시세", "drop_10": "매매가 10% 하락", "drop_20": "매매가 20% 하락"}.get(key, key),
-            priceDropRate={"drop_0": 0, "drop_10": 10, "drop_20": 20}.get(key, 0),
-            collateralBurdenRate=round(value * 100, 2),
-        )
-        for key, value in (indicators.price_drop_scenarios or {}).items()
+        price_scenario(key, burden_rate, result.estimated_sale_price)
+        for key, burden_rate in (indicators.price_drop_scenarios or {}).items()
     ]
     actions = recommended_actions(result)
 
@@ -136,9 +199,21 @@ def build_report_detail(request: DiagnosisRequest, result, reliability) -> Repor
         explanation=ReportExplanation(
             summary=f"최종 전세 위험등급은 {GRADE_LABELS[final_grade]}입니다.",
             keyFindings=[
-                f"예상 매매가는 {result.estimated_sale_price:,}원입니다.",
-                f"담보부담률은 {percent(indicators.collateral_burden_rate) or 0:.2f}%입니다.",
-                f"규칙 기반 위험점수는 {result.risk_score.total}점입니다.",
+                ReportFinding(
+                    title="AI 예상 매매가",
+                    description=f"예상 매매가는 {result.estimated_sale_price:,}원입니다.",
+                ),
+                ReportFinding(
+                    title="담보부담률",
+                    description=(
+                        f"담보부담률은 "
+                        f"{percent(indicators.collateral_burden_rate) or 0:.2f}%입니다."
+                    ),
+                ),
+                ReportFinding(
+                    title="위험점수",
+                    description=f"규칙 기반 위험점수는 {result.risk_score.total}점입니다.",
+                ),
             ],
             cautions=[item.description for item in notices],
             recommendedActions=actions,

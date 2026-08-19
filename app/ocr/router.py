@@ -219,10 +219,16 @@ async def register_check(
     )
 
     # DB 저장
+    # 저장에 실패하면 위험도 진단이 등기 권리관계를 통째로 빠뜨린 채 수행되므로
+    # 성공으로 응답하지 않는다.
     try:
         registry_result_id, owner_ids = save_registry_result(analysis_id, ocr_result)
         save_watchlist_checks(analysis_id, registry_result_id, owner_ids, response)
     except Exception as e:
         logger.exception("registry 저장 실패 (analysis_id=%s): %s", analysis_id, e)
+        raise HTTPException(
+            status_code=500,
+            detail="등기부등본 분석 결과를 저장하지 못했습니다. 다시 시도해 주세요.",
+        ) from e
 
     return response

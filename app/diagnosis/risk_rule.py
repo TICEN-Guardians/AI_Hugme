@@ -33,6 +33,13 @@ class RiskRule:
         "market": 8,
     }
 
+    # 담보부담률(또는 전세가율) 구간. 국내에서 통용되는 깡통전세 기준을 따른다.
+    #   ~70%  안전 / 70~80%  주의 / 80~90%  위험 / 90%~  매우 위험
+    DTV_SAFE_MAX = 0.7
+    DTV_CAUTION_MAX = 0.8
+    DTV_DANGER_MAX = 0.9
+    DTV_CRITICAL_MAX = 1.0
+
     @classmethod
     def score(
         cls,
@@ -82,17 +89,26 @@ class RiskRule:
             ),
         )
 
-    @staticmethod
-    def dtv_severity(value: float) -> float:
-        if value < 0.7:
+    @classmethod
+    def dtv_severity(cls, value: float) -> float:
+        if value < cls.DTV_SAFE_MAX:
             return 0.0
-        if value < 0.8:
+        if value < cls.DTV_CAUTION_MAX:
             return 0.4
-        if value < 0.9:
+        if value < cls.DTV_DANGER_MAX:
             return 0.7
-        if value <= 1.0:
+        if value <= cls.DTV_CRITICAL_MAX:
             return 0.9
         return 1.0
+
+    @classmethod
+    def dtv_verdict(cls, value: float) -> str:
+        """담보부담률을 안전/주의/위험 세 단계로 판정한다."""
+        if value < cls.DTV_SAFE_MAX:
+            return "SAFE"
+        if value < cls.DTV_CAUTION_MAX:
+            return "CAUTION"
+        return "RISK"
 
     @staticmethod
     def gap_severity(value: float) -> float:

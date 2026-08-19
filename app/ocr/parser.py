@@ -342,8 +342,21 @@ def extract_document_meta(text: str) -> dict:
 
 # ---------- 소유자 파싱 ----------
 
+MAX_OWNER_ADDRESS_LENGTH = 255
+
+
 def _clean_address(raw: str) -> str:
-    return re.sub(r"\s+", " ", raw).strip().rstrip(",")
+    """
+    소유자 주소를 정규화한다.
+    항목 종료 패턴을 못 만나면 캡처가 문서 뒷부분까지 번지므로,
+    정상 주소로 볼 수 없는 길이는 잘라내지 않고 미확인으로 처리한다.
+    """
+    address = re.sub(r"\s+", " ", raw).strip().rstrip(",")
+
+    if len(address) > MAX_OWNER_ADDRESS_LENGTH:
+        return ""
+
+    return address
 
 
 def extract_owner_groups(text: str) -> list[list[dict]]:
@@ -423,17 +436,19 @@ def decide_parse_status(owners: list[dict], rights: dict) -> str:
     """
     문서 전체 파싱 상태 판정.
     FAILED       : 갑구/을구 둘 다 못 읽음
-    PARTIAL      : 한쪽 섹션만 읽힘 또는 현재 소유자를 못 뽑음
+    PARTIAL      : 한쪽 섹션만 읽힘, 현재 소유자를 못 뽑음,
+                   또는 소유자 주소를 확정하지 못함
     NEEDS_REVIEW : 섹션은 다 읽혔지만 유효 근저당 중 금액 미확인 건이 있어
                    채권최고액 합계를 확정할 수 없음
     SUCCESS      : 위 해당 없음
     """
     gap_ok = rights["gap_section_status"] == "EXTRACTED"
     eul_ok = rights["eul_section_status"] in ("EXTRACTED", "CONFIRMED_NONE")
+    address_ok = all(owner.get("address") for owner in owners)
 
     if not gap_ok and not eul_ok:
         return "FAILED"
-    if not gap_ok or not eul_ok or not owners:
+    if not gap_ok or not eul_ok or not owners or not address_ok:
         return "PARTIAL"
     if (rights["eul_section_status"] == "EXTRACTED"
             and rights["total_active_max_claim_amount"] is None):

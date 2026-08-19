@@ -4,15 +4,20 @@ import os
 from openai import OpenAI
 from pydantic import BaseModel
 
-from app.diagnosis.schemas import ReportDetail, ReportExplanation
+from app.diagnosis.schemas import ReportDetail, ReportExplanation, ReportFinding
 
 
 logger = logging.getLogger(__name__)
 
 
+class LlmFinding(BaseModel):
+    title: str
+    description: str
+
+
 class LlmExplanation(BaseModel):
     summary: str
-    key_findings: list[str]
+    key_findings: list[LlmFinding]
     cautions: list[str]
     recommended_actions: list[str]
 
@@ -40,6 +45,7 @@ def explain_report(report: ReportDetail) -> ReportDetail:
             input=(
                 "다음 규칙 기반 리포트를 설명하라. "
                 "summary는 2문장 이내, 각 배열은 최대 4개로 작성한다. "
+                "key_findings의 title은 12자 이내 명사구로 쓴다. "
                 "제공된 응답 스키마의 필드만 작성한다.\n"
                 + report.model_dump_json(by_alias=True, exclude={"explanation"})
             ),
@@ -51,7 +57,13 @@ def explain_report(report: ReportDetail) -> ReportDetail:
             raise RuntimeError("LLM 설명 구조화 결과 없음")
         explanation = ReportExplanation(
             summary=payload.summary,
-            keyFindings=payload.key_findings,
+            keyFindings=[
+                ReportFinding(
+                    title=finding.title,
+                    description=finding.description,
+                )
+                for finding in payload.key_findings
+            ],
             cautions=payload.cautions,
             recommendedActions=payload.recommended_actions,
             generatedBy="LLM",
