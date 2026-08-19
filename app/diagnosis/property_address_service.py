@@ -8,10 +8,6 @@ from app.diagnosis.housing_type_resolver import (HousingTypeResolutionError,Hous
 from app.diagnosis.schemas import HousingType
 from app.diagnosis.external.building_ledger.unit_area import (UnitAreaError,UnitAreaResult,)
 
-class PropertyAddressError(ValueError):
-    pass
-
-
 @dataclass(frozen=True)
 class PropertyAddressResult:
     address: ResolvedAddress
@@ -53,13 +49,6 @@ class PropertyAddressService:
             key=resolved.building_ledger_key,
         )
 
-        if (
-            housing_type != HousingType.DETACHED_MULTI
-            and not dong_name
-            and resolved.available_dongs
-        ):
-            raise PropertyAddressError("공동주택 동 정보 필요")
-
         unit_area = None
 
         if (
@@ -94,7 +83,6 @@ class PropertyAddressService:
         title: dict,
         key: BuildingLedgerKey,
     ) -> HousingType:
-        """표제부로 판정하고, 안 되면 전유부 용도로 보완한다."""
         try:
             return HousingTypeResolver.resolve(title)
         except HousingTypeResolutionError:

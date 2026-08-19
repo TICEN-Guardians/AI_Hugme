@@ -116,6 +116,19 @@ class PropertyCandidate(ApiModel):
         alias="housingType",
     )
 
+class AddressCandidate(ApiModel):
+    road_address: str = Field(
+        alias="roadAddress",
+    )
+    jibun_address: str = Field(
+        alias="jibunAddress",
+    )
+    building_name: str | None = Field(
+        default=None,
+        alias="buildingName",
+    )
+
+
 class PropertySearchResponse(ApiModel):
     normalized_address: str = Field(
         alias="normalizedAddress",
@@ -125,6 +138,10 @@ class PropertySearchResponse(ApiModel):
         alias="buildingName",
     )
     candidates: list[PropertyCandidate]
+    address_candidates: list[AddressCandidate] = Field(
+        default_factory=list,
+        alias="addressCandidates",
+    )
 
 class PropertyResolveRequest(ApiModel):
     address: str = Field(

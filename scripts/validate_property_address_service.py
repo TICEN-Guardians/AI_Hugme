@@ -7,8 +7,10 @@ from app.diagnosis.external.building_ledger.schemas import (
 from app.diagnosis.external.building_ledger.service import (
     BuildingLedgerResult,
 )
+from app.diagnosis.external.building_ledger.selector import (
+    BuildingLedgerSelectionError,
+)
 from app.diagnosis.property_address_service import (
-    PropertyAddressError,
     PropertyAddressService,
 )
 from app.diagnosis.housing_type_resolver import (
@@ -111,7 +113,7 @@ def main() -> None:
             address="서울시 테스트로 12",
             dong_name="999동",
         )
-    except PropertyAddressError:
+    except BuildingLedgerSelectionError:
         pass
     else:
         raise AssertionError(

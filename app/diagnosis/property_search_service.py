@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from app.diagnosis.external.address.service import (
+    AddressAmbiguousError,
     AddressService,
 )
 from app.diagnosis.external.building_ledger.client import (
@@ -8,6 +9,9 @@ from app.diagnosis.external.building_ledger.client import (
 )
 from app.diagnosis.external.building_ledger.schemas import (
     BuildingLedgerKey,
+)
+from app.diagnosis.external.building_ledger.selector import (
+    BuildingLedgerSelector,
 )
 from app.diagnosis.housing_type_resolver import (
     HousingTypeResolutionError,
@@ -24,10 +28,20 @@ class PropertyCandidateResult:
 
 
 @dataclass(frozen=True)
+class AddressCandidateResult:
+    road_address: str
+    jibun_address: str
+    building_name: str | None
+
+
+@dataclass(frozen=True)
 class PropertySearchResult:
     normalized_address: str
     building_name: str | None
     candidates: tuple[PropertyCandidateResult, ...]
+    address_candidates: tuple[
+        AddressCandidateResult, ...
+    ] = ()
 
 
 class PropertySearchService:
@@ -45,7 +59,19 @@ class PropertySearchService:
         self,
         address: str,
     ) -> PropertySearchResult:
-        resolved = self.address_service.resolve(address)
+        try:
+            resolved = (
+                self.address_service.resolve(address)
+            )
+        except AddressAmbiguousError as exc:
+            return PropertySearchResult(
+                normalized_address="",
+                building_name=None,
+                candidates=(),
+                address_candidates=self._address_candidates(
+                    exc.candidates
+                ),
+            )
 
         titles = self.building_ledger_client.get_title(
             resolved.building_ledger_key
@@ -54,7 +80,6 @@ class PropertySearchService:
         candidates = self._candidates(
             titles=titles,
             building_name=resolved.building_name,
-            available_dongs=resolved.available_dongs,
             ledger_key=resolved.building_ledger_key,
         )
 
@@ -64,17 +89,41 @@ class PropertySearchService:
             candidates=candidates,
         )
 
+    @staticmethod
+    def _address_candidates(
+        items: tuple[dict, ...],
+    ) -> tuple[AddressCandidateResult, ...]:
+        return tuple(
+            AddressCandidateResult(
+                road_address=str(
+                    item.get("roadAddr") or ""
+                ).strip(),
+                jibun_address=str(
+                    item.get("jibunAddr") or ""
+                ).strip(),
+                building_name=str(
+                    item.get("bdNm") or ""
+                ).strip() or None,
+            )
+            for item in items
+        )
+
     def _candidates(
         self,
         titles: list[dict],
         building_name: str | None,
-        available_dongs: tuple[str, ...],
         ledger_key: BuildingLedgerKey,
     ) -> tuple[PropertyCandidateResult, ...]:
         results: dict[
             tuple[str, HousingType],
             PropertyCandidateResult,
         ] = {}
+
+        ledger_has_dong = any(
+            str(item.get("dongNm") or "").strip()
+            for item in titles
+            if item.get("mainAtchGbCdNm") == "주건축물"
+        )
 
         for title in titles:
             if (
@@ -86,13 +135,10 @@ class PropertySearchService:
             actual_name = self._clean(
                 title.get("bldNm")
             )
-            expected_name = self._clean(
-                building_name
-            )
 
-            if (
-                expected_name
-                and expected_name not in actual_name
+            if not BuildingLedgerSelector.matches_building_name(
+                expected=building_name,
+                actual=title.get("bldNm"),
             ):
                 continue
 
@@ -109,7 +155,7 @@ class PropertySearchService:
 
             if (
                 not dong_name
-                and available_dongs
+                and ledger_has_dong
                 and housing_type != HousingType.DETACHED_MULTI
             ):
                 continue
@@ -136,11 +182,6 @@ class PropertySearchService:
         title: dict,
         ledger_key: BuildingLedgerKey,
     ) -> HousingType:
-        """표제부로 판정하고, 안 되면 전유부 용도로 보완한다.
-
-        표제부 세부용도가 '공동주택' 으로만 적힌 건물이 적지 않아,
-        그대로 두면 후보에서 통째로 빠진다.
-        """
         try:
             return HousingTypeResolver.resolve(title)
         except HousingTypeResolutionError:
