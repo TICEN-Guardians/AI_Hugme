@@ -13,7 +13,8 @@ COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt \
     && pip uninstall -y opencv-python opencv-python-headless \
-    && pip install --no-cache-dir opencv-python-headless
+    && pip install --no-cache-dir opencv-python-headless \
+    && rm requirements.txt
 
 COPY app ./app
 COPY artifacts/contracts ./artifacts/contracts
