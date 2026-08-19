@@ -22,6 +22,7 @@ from app.diagnosis.schemas import (
     PropertySummary,
     RiskBreakdown,
     RiskSummary,
+    RiskWeights,
     ValuationReliability,
     ValuationSummary,
     PropertyCandidate,
@@ -29,6 +30,7 @@ from app.diagnosis.schemas import (
     PropertySearchResponse,
 )
 from app.diagnosis.external.building_ledger.unit_area import (UnitAreaError,)
+from app.diagnosis.risk_rule import RiskRule
 from app.diagnosis.report_builder import build_report_detail
 from app.diagnosis.report_explainer import explain_report
 
@@ -285,6 +287,15 @@ def analyze_diagnosis(
                 property=score.property,
                 market=score.market,
             ),
+            weights=RiskWeights(
+                underwater=RiskRule.LIMITS["underwater"],
+                rollover=RiskRule.LIMITS["rollover"],
+                property=RiskRule.LIMITS["property"],
+                market=RiskRule.LIMITS["market"],
+                total=sum(RiskRule.LIMITS.values()),
+            ),
+            gradeOverridden=result.forced_warning.grade_overridden,
+            provisionalCollateralBasis=score.provisional_collateral_basis,
         ),
         forcedWarnings=list(result.forced_warning.warnings),
         missingChecks=list(result.missing_checks),

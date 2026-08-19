@@ -1,3 +1,4 @@
+import time
 from typing import Any
 from urllib.parse import unquote
 import requests
@@ -14,6 +15,8 @@ class BuildingLedgerClient:
         "https://apis.data.go.kr/1613000/"
         "BldRgstHubService"
     )
+    MAX_ATTEMPTS = 3
+    RETRY_BACKOFF_SECONDS = 0.5
 
     def __init__(
         self,
@@ -117,8 +120,9 @@ class BuildingLedgerClient:
             params.update(extra_params)
 
         error: requests.RequestException | ValueError | None = None
+        last_attempt = self.MAX_ATTEMPTS - 1
 
-        for attempt in range(2):
+        for attempt in range(self.MAX_ATTEMPTS):
             try:
                 response = self.session.get(
                     f"{self.BASE_URL}/{endpoint}",
@@ -143,8 +147,12 @@ class BuildingLedgerClient:
                 error = exc
                 break
 
-            if attempt == 1:
+            if attempt == last_attempt:
                 break
+
+            # 공공데이터 API는 순간적으로 비정상 응답을 주는 일이 있어
+            # 간격을 두고 재시도한다.
+            time.sleep(self.RETRY_BACKOFF_SECONDS * (2 ** attempt))
 
         status = (
             error.response.status_code

@@ -15,9 +15,14 @@ def _now():
     return datetime.now(timezone.utc)
 
 
+def _owner_key(name: str, jumin_front: str) -> tuple[str, str]:
+    """동명이인 공유자를 구분하기 위해 이름과 주민번호 앞자리를 함께 키로 쓴다."""
+    return (str(name or "").strip(), str(jumin_front or "").strip())
+
+
 def save_registry_result(
     analysis_id: str, owner_info: OcrRegisterResponse
-) -> tuple[int, dict[str, int]]:
+) -> tuple[int, dict[tuple[str, str], int]]:
     """
     registry_results 1행 + registry_owners N행 + registry_rights N행을 저장하고
     registry_result_id를 반환
@@ -77,7 +82,7 @@ def save_registry_result(
             )
             registry_result_id = cur.fetchone()[0]
 
-            owner_ids: dict[str, int] = {}
+            owner_ids: dict[tuple[str, str], int] = {}
             for owner in owner_info.current_owners:
                 cur.execute(
                     """
@@ -98,7 +103,9 @@ def save_registry_result(
                         now,
                     ),
                 )
-                owner_ids[owner.name] = cur.fetchone()[0]
+                owner_ids[
+                    _owner_key(owner.name, owner.jumin_front)
+                ] = cur.fetchone()[0]
 
             for right in owner_info.rights:
                 cur.execute(
@@ -136,7 +143,7 @@ def save_registry_result(
 def save_watchlist_checks(
     analysis_id: str,
     registry_result_id: int,
-    owner_ids: dict[str, int],
+    owner_ids: dict[tuple[str, str], int],
     check_result: RegisterCheckResponse,
 ) -> None:
     """소유자별 악성임대인 대조 결과를 landlord_watchlist_checks에 저장."""
@@ -144,7 +151,13 @@ def save_watchlist_checks(
     try:
         with conn.cursor() as cur:
             for r in check_result.results:
-                registry_owner_id = owner_ids.get(r.owner.name) if r.owner else None
+                registry_owner_id = (
+                    owner_ids.get(
+                        _owner_key(r.owner.name, r.owner.jumin_front)
+                    )
+                    if r.owner
+                    else None
+                )
                 cur.execute(
                     """
                     INSERT INTO landlord_watchlist_checks (

@@ -283,10 +283,20 @@ class IndicatorSummary(ApiModel):
 
 
 class RiskBreakdown(ApiModel):
-    underwater: int = Field(description="담보부족 위험(깡통전세), 47점 만점")
-    rollover: int = Field(description="역전세 위험, 35점 만점")
-    property: int = Field(description="주택 특성 위험, 10점 만점")
-    market: int = Field(description="시장 상황 위험, 8점 만점")
+    underwater: int = Field(description="담보부족 위험(깡통전세)")
+    rollover: int = Field(description="역전세 위험")
+    property: int = Field(description="주택 특성 위험")
+    market: int = Field(description="시장 상황 위험")
+
+
+class RiskWeights(ApiModel):
+    """위험요인별 만점. 클라이언트가 만점을 따로 갖지 않도록 함께 내려준다."""
+
+    underwater: int
+    rollover: int
+    property: int
+    market: int
+    total: int
 
 
 class RiskSummary(ApiModel):
@@ -297,6 +307,17 @@ class RiskSummary(ApiModel):
     )
     grade: RiskGrade
     breakdown: RiskBreakdown
+    weights: RiskWeights
+    grade_overridden: bool = Field(
+        default=False,
+        alias="gradeOverridden",
+        description="강제 경고로 점수와 무관하게 등급이 상향됐는지 여부",
+    )
+    provisional_collateral_basis: bool = Field(
+        default=False,
+        alias="provisionalCollateralBasis",
+        description="담보부담률을 확정하지 못해 전세가율을 대신 사용했는지 여부",
+    )
 
 
 class ReportMetric(ApiModel):
@@ -320,15 +341,34 @@ class ReportNotice(ApiModel):
     severity: str
 
 
+class RiskVerdict(str, Enum):
+    SAFE = "SAFE"
+    CAUTION = "CAUTION"
+    RISK = "RISK"
+
+
 class PriceScenarioPoint(ApiModel):
     label: str
     price_drop_rate: int = Field(alias="priceDropRate")
+    estimated_sale_price: int = Field(
+        alias="estimatedSalePrice",
+        ge=0,
+        description="해당 하락률을 적용한 추정 매매가, 원",
+    )
     collateral_burden_rate: float = Field(alias="collateralBurdenRate")
+    verdict: RiskVerdict = Field(
+        description="담보부담률 구간 판정. 임계값은 서버 규칙을 따른다.",
+    )
+
+
+class ReportFinding(ApiModel):
+    title: str = Field(description="한 줄 제목")
+    description: str = Field(description="근거 설명")
 
 
 class ReportExplanation(ApiModel):
     summary: str
-    key_findings: list[str] = Field(alias="keyFindings")
+    key_findings: list[ReportFinding] = Field(alias="keyFindings")
     cautions: list[str]
     recommended_actions: list[str] = Field(alias="recommendedActions")
     generated_by: str = Field(alias="generatedBy")
