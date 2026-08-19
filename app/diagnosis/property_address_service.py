@@ -40,11 +40,6 @@ class PropertyAddressService:
     ) -> PropertyAddressResult:
         resolved = self.address_service.resolve(address)
 
-        self._validate_dong(
-            requested=dong_name,
-            available=resolved.available_dongs,
-        )
-
         ledger_result = (
             self.building_ledger_service.fetch(
                 key=resolved.building_ledger_key,
@@ -91,37 +86,3 @@ class PropertyAddressService:
             housing_type=housing_type,
             unit_area=unit_area,
         )
-
-    @classmethod
-    def _validate_dong(
-        cls,
-        requested: str | None,
-        available: tuple[str, ...],
-    ) -> None:
-        requested_value = cls._dong(requested)
-
-        if not requested_value:
-            return
-
-        if not available:
-            return
-
-        available_values = {
-            cls._dong(value)
-            for value in available
-        }
-
-        if requested_value not in available_values:
-            raise PropertyAddressError(
-                f"주소에 존재하지 않는 동: "
-                f"{requested}"
-            )
-
-    @staticmethod
-    def _dong(value: str | None) -> str:
-        text = "".join((value or "").split()).lower()
-
-        if text.endswith("동"):
-            return text[:-1]
-
-        return text
