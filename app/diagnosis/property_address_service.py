@@ -2,8 +2,9 @@ from dataclasses import dataclass
 
 from app.diagnosis.external.address.schemas import (ResolvedAddress,)
 from app.diagnosis.external.address.service import (AddressService,)
+from app.diagnosis.external.building_ledger.schemas import (BuildingLedgerKey,)
 from app.diagnosis.external.building_ledger.service import (BuildingLedgerResult,BuildingLedgerService,)
-from app.diagnosis.housing_type_resolver import (HousingTypeResolver,)
+from app.diagnosis.housing_type_resolver import (HousingTypeResolutionError,HousingTypeResolver,)
 from app.diagnosis.schemas import HousingType
 from app.diagnosis.external.building_ledger.unit_area import (UnitAreaError,UnitAreaResult,)
 
@@ -47,8 +48,9 @@ class PropertyAddressService:
                 dong_name=dong_name,
             )
         )
-        housing_type = HousingTypeResolver.resolve(
-            ledger_result.selected_title
+        housing_type = self._housing_type(
+            title=ledger_result.selected_title,
+            key=resolved.building_ledger_key,
         )
 
         if (
@@ -85,4 +87,22 @@ class PropertyAddressService:
             ho_name=ho_name,
             housing_type=housing_type,
             unit_area=unit_area,
+        )
+
+    def _housing_type(
+        self,
+        title: dict,
+        key: BuildingLedgerKey,
+    ) -> HousingType:
+        """표제부로 판정하고, 안 되면 전유부 용도로 보완한다."""
+        try:
+            return HousingTypeResolver.resolve(title)
+        except HousingTypeResolutionError:
+            pass
+
+        return HousingTypeResolver.resolve_units(
+            self.building_ledger_service.fetch_unit_purposes(
+                key=key,
+                dong_name=title.get("dongNm"),
+            )
         )

@@ -6,6 +6,9 @@ from app.diagnosis.external.address.service import (
 from app.diagnosis.external.building_ledger.client import (
     BuildingLedgerClient,
 )
+from app.diagnosis.external.building_ledger.schemas import (
+    BuildingLedgerKey,
+)
 from app.diagnosis.housing_type_resolver import (
     HousingTypeResolutionError,
     HousingTypeResolver,
@@ -52,6 +55,7 @@ class PropertySearchService:
             titles=titles,
             building_name=resolved.building_name,
             available_dongs=resolved.available_dongs,
+            ledger_key=resolved.building_ledger_key,
         )
 
         return PropertySearchResult(
@@ -60,12 +64,12 @@ class PropertySearchService:
             candidates=candidates,
         )
 
-    @classmethod
     def _candidates(
-        cls,
+        self,
         titles: list[dict],
         building_name: str | None,
         available_dongs: tuple[str, ...],
+        ledger_key: BuildingLedgerKey,
     ) -> tuple[PropertyCandidateResult, ...]:
         results: dict[
             tuple[str, HousingType],
@@ -79,10 +83,10 @@ class PropertySearchService:
             ):
                 continue
 
-            actual_name = cls._clean(
+            actual_name = self._clean(
                 title.get("bldNm")
             )
-            expected_name = cls._clean(
+            expected_name = self._clean(
                 building_name
             )
 
@@ -94,7 +98,7 @@ class PropertySearchService:
 
             try:
                 housing_type = (
-                    HousingTypeResolver.resolve(title)
+                    self._housing_type(title, ledger_key)
                 )
             except HousingTypeResolutionError:
                 continue
@@ -124,6 +128,28 @@ class PropertySearchService:
             sorted(
                 results.values(),
                 key=lambda item: item.dong_name or "",
+            )
+        )
+
+    def _housing_type(
+        self,
+        title: dict,
+        ledger_key: BuildingLedgerKey,
+    ) -> HousingType:
+        """표제부로 판정하고, 안 되면 전유부 용도로 보완한다.
+
+        표제부 세부용도가 '공동주택' 으로만 적힌 건물이 적지 않아,
+        그대로 두면 후보에서 통째로 빠진다.
+        """
+        try:
+            return HousingTypeResolver.resolve(title)
+        except HousingTypeResolutionError:
+            pass
+
+        return HousingTypeResolver.resolve_units(
+            self.building_ledger_client.get_unit_purposes(
+                key=ledger_key,
+                dong_name=title.get("dongNm"),
             )
         )
 

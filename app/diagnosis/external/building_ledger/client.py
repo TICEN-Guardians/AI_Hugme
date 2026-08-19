@@ -101,6 +101,30 @@ class BuildingLedgerClient:
             "전유공용면적 페이지 범위 초과"
         )
 
+    def get_unit_purposes(
+        self,
+        key: BuildingLedgerKey,
+        dong_name: str | None,
+    ) -> list[dict[str, Any]]:
+        """한 동의 전유부 항목을 가져온다.
+
+        표제부만으로 주택유형이 판정되지 않을 때 세대별 용도를 보려는 용도라
+        면적 합산이 필요 없다. 그래서 get_exclusive_area 와 달리 호를 지정하지
+        않고 첫 페이지만 읽는다.
+        """
+        # 동명은 대장 표제부의 dongNm 을 그대로 쓴다.
+        # '401동(근린생활시설)' 처럼 '동'으로 끝나지 않는 표기가 있어
+        # 접미사를 다듬으면 오히려 조회가 어긋난다.
+        dong = "".join(str(dong_name or "").split())
+        extra_params = {"dongNm": dong} if dong else None
+
+        return self._get(
+            endpoint="getBrExposPubuseAreaInfo",
+            key=key,
+            extra_params=extra_params,
+            num_of_rows=100,
+        )
+
     def _get(
         self,
         endpoint: str,
