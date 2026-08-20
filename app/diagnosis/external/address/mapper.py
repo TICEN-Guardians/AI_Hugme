@@ -1,3 +1,4 @@
+import html
 from typing import Any
 
 from app.diagnosis.external.address.schemas import (
@@ -125,7 +126,7 @@ class AddressMapper:
 
     @staticmethod
     def _optional(value: Any) -> str | None:
-        text = str(value or "").strip()
+        text = html.unescape(str(value or "")).strip()
         return text or None
 
     @staticmethod

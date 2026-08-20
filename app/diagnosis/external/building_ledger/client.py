@@ -101,6 +101,21 @@ class BuildingLedgerClient:
             "전유공용면적 페이지 범위 초과"
         )
 
+    def get_unit_purposes(
+        self,
+        key: BuildingLedgerKey,
+        dong_name: str | None,
+    ) -> list[dict[str, Any]]:
+        dong = "".join(str(dong_name or "").split())
+        extra_params = {"dongNm": dong} if dong else None
+
+        return self._get(
+            endpoint="getBrExposPubuseAreaInfo",
+            key=key,
+            extra_params=extra_params,
+            num_of_rows=100,
+        )
+
     def _get(
         self,
         endpoint: str,

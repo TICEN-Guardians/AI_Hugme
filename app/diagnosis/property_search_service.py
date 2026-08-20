@@ -1,10 +1,17 @@
 from dataclasses import dataclass
 
 from app.diagnosis.external.address.service import (
+    AddressAmbiguousError,
     AddressService,
 )
 from app.diagnosis.external.building_ledger.client import (
     BuildingLedgerClient,
+)
+from app.diagnosis.external.building_ledger.schemas import (
+    BuildingLedgerKey,
+)
+from app.diagnosis.external.building_ledger.selector import (
+    BuildingLedgerSelector,
 )
 from app.diagnosis.housing_type_resolver import (
     HousingTypeResolutionError,
@@ -21,10 +28,20 @@ class PropertyCandidateResult:
 
 
 @dataclass(frozen=True)
+class AddressCandidateResult:
+    road_address: str
+    jibun_address: str
+    building_name: str | None
+
+
+@dataclass(frozen=True)
 class PropertySearchResult:
     normalized_address: str
     building_name: str | None
     candidates: tuple[PropertyCandidateResult, ...]
+    address_candidates: tuple[
+        AddressCandidateResult, ...
+    ] = ()
 
 
 class PropertySearchService:
@@ -42,7 +59,19 @@ class PropertySearchService:
         self,
         address: str,
     ) -> PropertySearchResult:
-        resolved = self.address_service.resolve(address)
+        try:
+            resolved = (
+                self.address_service.resolve(address)
+            )
+        except AddressAmbiguousError as exc:
+            return PropertySearchResult(
+                normalized_address="",
+                building_name=None,
+                candidates=(),
+                address_candidates=self._address_candidates(
+                    exc.candidates
+                ),
+            )
 
         titles = self.building_ledger_client.get_title(
             resolved.building_ledger_key
@@ -51,7 +80,7 @@ class PropertySearchService:
         candidates = self._candidates(
             titles=titles,
             building_name=resolved.building_name,
-            available_dongs=resolved.available_dongs,
+            ledger_key=resolved.building_ledger_key,
         )
 
         return PropertySearchResult(
@@ -60,17 +89,41 @@ class PropertySearchService:
             candidates=candidates,
         )
 
-    @classmethod
+    @staticmethod
+    def _address_candidates(
+        items: tuple[dict, ...],
+    ) -> tuple[AddressCandidateResult, ...]:
+        return tuple(
+            AddressCandidateResult(
+                road_address=str(
+                    item.get("roadAddr") or ""
+                ).strip(),
+                jibun_address=str(
+                    item.get("jibunAddr") or ""
+                ).strip(),
+                building_name=str(
+                    item.get("bdNm") or ""
+                ).strip() or None,
+            )
+            for item in items
+        )
+
     def _candidates(
-        cls,
+        self,
         titles: list[dict],
         building_name: str | None,
-        available_dongs: tuple[str, ...],
+        ledger_key: BuildingLedgerKey,
     ) -> tuple[PropertyCandidateResult, ...]:
         results: dict[
             tuple[str, HousingType],
             PropertyCandidateResult,
         ] = {}
+
+        ledger_has_dong = any(
+            str(item.get("dongNm") or "").strip()
+            for item in titles
+            if item.get("mainAtchGbCdNm") == "주건축물"
+        )
 
         for title in titles:
             if (
@@ -79,22 +132,19 @@ class PropertySearchService:
             ):
                 continue
 
-            actual_name = cls._clean(
+            actual_name = self._clean(
                 title.get("bldNm")
             )
-            expected_name = cls._clean(
-                building_name
-            )
 
-            if (
-                expected_name
-                and expected_name not in actual_name
+            if not BuildingLedgerSelector.matches_building_name(
+                expected=building_name,
+                actual=title.get("bldNm"),
             ):
                 continue
 
             try:
                 housing_type = (
-                    HousingTypeResolver.resolve(title)
+                    self._housing_type(title, ledger_key)
                 )
             except HousingTypeResolutionError:
                 continue
@@ -105,7 +155,7 @@ class PropertySearchService:
 
             if (
                 not dong_name
-                and available_dongs
+                and ledger_has_dong
                 and housing_type != HousingType.DETACHED_MULTI
             ):
                 continue
@@ -124,6 +174,23 @@ class PropertySearchService:
             sorted(
                 results.values(),
                 key=lambda item: item.dong_name or "",
+            )
+        )
+
+    def _housing_type(
+        self,
+        title: dict,
+        ledger_key: BuildingLedgerKey,
+    ) -> HousingType:
+        try:
+            return HousingTypeResolver.resolve(title)
+        except HousingTypeResolutionError:
+            pass
+
+        return HousingTypeResolver.resolve_units(
+            self.building_ledger_client.get_unit_purposes(
+                key=ledger_key,
+                dong_name=title.get("dongNm"),
             )
         )
 

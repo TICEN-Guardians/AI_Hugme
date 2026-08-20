@@ -6,6 +6,39 @@ class BuildingLedgerSelectionError(ValueError):
 
 
 class BuildingLedgerSelector:
+    NAME_SUFFIXES = (
+        "아파트",
+        "오피스텔",
+        "연립주택",
+        "다세대주택",
+        "빌라",
+    )
+
+    @classmethod
+    def matches_building_name(
+        cls,
+        expected: object,
+        actual: object,
+    ) -> bool:
+        expected_name = cls._clean(expected)
+        actual_name = cls._clean(actual)
+
+        if not expected_name or not actual_name:
+            return True
+
+        if expected_name in actual_name:
+            return True
+
+        return cls._drop_suffix(expected_name) in actual_name
+
+    @classmethod
+    def _drop_suffix(cls, name: str) -> str:
+        for suffix in cls.NAME_SUFFIXES:
+            if name.endswith(suffix) and len(name) > len(suffix):
+                return name[: -len(suffix)]
+
+        return name
+
     @classmethod
     def select_title(
         cls,
@@ -39,6 +72,14 @@ class BuildingLedgerSelector:
             )
 
         if len(candidates) > 1:
+            if not cls._dong(dong_name) and any(
+                cls._dong(item.get("dongNm"))
+                for item in candidates
+            ):
+                raise BuildingLedgerSelectionError(
+                    "공동주택 동 정보 필요"
+                )
+
             raise BuildingLedgerSelectionError(
                 f"건축물대장 표제부 후보 다수: "
                 f"{len(candidates)}건"
@@ -61,10 +102,10 @@ class BuildingLedgerSelector:
         item: dict[str, Any],
         building_name: str | None,
     ) -> bool:
-        expected = cls._clean(building_name)
-        actual = cls._clean(item.get("bldNm"))
-
-        return bool(expected) and expected in actual
+        return cls.matches_building_name(
+            expected=building_name,
+            actual=item.get("bldNm"),
+        )
 
     @classmethod
     def _matches_dong(

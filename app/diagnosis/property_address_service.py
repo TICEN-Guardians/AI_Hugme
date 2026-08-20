@@ -2,14 +2,11 @@ from dataclasses import dataclass
 
 from app.diagnosis.external.address.schemas import (ResolvedAddress,)
 from app.diagnosis.external.address.service import (AddressService,)
+from app.diagnosis.external.building_ledger.schemas import (BuildingLedgerKey,)
 from app.diagnosis.external.building_ledger.service import (BuildingLedgerResult,BuildingLedgerService,)
-from app.diagnosis.housing_type_resolver import (HousingTypeResolver,)
+from app.diagnosis.housing_type_resolver import (HousingTypeResolutionError,HousingTypeResolver,)
 from app.diagnosis.schemas import HousingType
 from app.diagnosis.external.building_ledger.unit_area import (UnitAreaError,UnitAreaResult,)
-
-class PropertyAddressError(ValueError):
-    pass
-
 
 @dataclass(frozen=True)
 class PropertyAddressResult:
@@ -40,11 +37,6 @@ class PropertyAddressService:
     ) -> PropertyAddressResult:
         resolved = self.address_service.resolve(address)
 
-        self._validate_dong(
-            requested=dong_name,
-            available=resolved.available_dongs,
-        )
-
         ledger_result = (
             self.building_ledger_service.fetch(
                 key=resolved.building_ledger_key,
@@ -52,16 +44,10 @@ class PropertyAddressService:
                 dong_name=dong_name,
             )
         )
-        housing_type = HousingTypeResolver.resolve(
-            ledger_result.selected_title
+        housing_type = self._housing_type(
+            title=ledger_result.selected_title,
+            key=resolved.building_ledger_key,
         )
-
-        if (
-            housing_type != HousingType.DETACHED_MULTI
-            and not dong_name
-            and resolved.available_dongs
-        ):
-            raise PropertyAddressError("공동주택 동 정보 필요")
 
         unit_area = None
 
@@ -92,36 +78,19 @@ class PropertyAddressService:
             unit_area=unit_area,
         )
 
-    @classmethod
-    def _validate_dong(
-        cls,
-        requested: str | None,
-        available: tuple[str, ...],
-    ) -> None:
-        requested_value = cls._dong(requested)
+    def _housing_type(
+        self,
+        title: dict,
+        key: BuildingLedgerKey,
+    ) -> HousingType:
+        try:
+            return HousingTypeResolver.resolve(title)
+        except HousingTypeResolutionError:
+            pass
 
-        if not requested_value:
-            return
-
-        if not available:
-            return
-
-        available_values = {
-            cls._dong(value)
-            for value in available
-        }
-
-        if requested_value not in available_values:
-            raise PropertyAddressError(
-                f"주소에 존재하지 않는 동: "
-                f"{requested}"
+        return HousingTypeResolver.resolve_units(
+            self.building_ledger_service.fetch_unit_purposes(
+                key=key,
+                dong_name=title.get("dongNm"),
             )
-
-    @staticmethod
-    def _dong(value: str | None) -> str:
-        text = "".join((value or "").split()).lower()
-
-        if text.endswith("동"):
-            return text[:-1]
-
-        return text
+        )

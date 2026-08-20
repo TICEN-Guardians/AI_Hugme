@@ -88,6 +88,17 @@ class RegistryRiskPayload(ApiModel):
         default=TriStateValue.UNKNOWN,
         alias="ownerMatchesContractParty",
     )
+    contract_party_name: str | None = Field(
+        default=None,
+        alias="contractPartyName",
+        max_length=100,
+        description="사용자가 입력한 계약 상대방(임대인) 이름",
+    )
+    owner_names: list[str] = Field(
+        default_factory=list,
+        alias="ownerNames",
+        description="등기부에서 읽은 현재 소유자 이름",
+    )
     watchlist_check_status: WatchlistCheckStatus = Field(
         alias="watchlistCheckStatus"
     )
@@ -116,6 +127,19 @@ class PropertyCandidate(ApiModel):
         alias="housingType",
     )
 
+class AddressCandidate(ApiModel):
+    road_address: str = Field(
+        alias="roadAddress",
+    )
+    jibun_address: str = Field(
+        alias="jibunAddress",
+    )
+    building_name: str | None = Field(
+        default=None,
+        alias="buildingName",
+    )
+
+
 class PropertySearchResponse(ApiModel):
     normalized_address: str = Field(
         alias="normalizedAddress",
@@ -125,6 +149,10 @@ class PropertySearchResponse(ApiModel):
         alias="buildingName",
     )
     candidates: list[PropertyCandidate]
+    address_candidates: list[AddressCandidate] = Field(
+        default_factory=list,
+        alias="addressCandidates",
+    )
 
 class PropertyResolveRequest(ApiModel):
     address: str = Field(
@@ -366,11 +394,16 @@ class ReportFinding(ApiModel):
     description: str = Field(description="근거 설명")
 
 
+class ReportAction(ApiModel):
+    label: str = Field(description="목록에 쓰는 명사형 요약")
+    description: str = Field(description="계약자가 실행할 문장")
+
+
 class ReportExplanation(ApiModel):
     summary: str
     key_findings: list[ReportFinding] = Field(alias="keyFindings")
     cautions: list[str]
-    recommended_actions: list[str] = Field(alias="recommendedActions")
+    recommended_actions: list[ReportAction] = Field(alias="recommendedActions")
     generated_by: str = Field(alias="generatedBy")
 
 

@@ -53,6 +53,16 @@ class BuildingLedgerService:
             quality=quality,
         )
 
+    def fetch_unit_purposes(
+        self,
+        key: BuildingLedgerKey,
+        dong_name: str | None,
+    ) -> list[dict[str, Any]]:
+        return self.client.get_unit_purposes(
+            key=key,
+            dong_name=dong_name,
+        )
+
     def fetch_unit_area(
         self,
         key: BuildingLedgerKey,

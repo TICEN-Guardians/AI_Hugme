@@ -15,6 +15,17 @@ class AddressResolutionError(ValueError):
     pass
 
 
+class AddressAmbiguousError(AddressResolutionError):
+    def __init__(
+        self,
+        candidates: tuple[dict, ...],
+    ) -> None:
+        super().__init__(
+            f"주소 검색 결과 다수: {len(candidates)}건"
+        )
+        self.candidates = candidates
+
+
 class AddressService:
     def __init__(
         self,
@@ -53,24 +64,27 @@ class AddressService:
         if len(items) == 1:
             return items[0]
 
-        expected = cls._normalize(keyword)
-        matches = [
-            item
-            for item in items
-            if expected
-            in {
-                cls._normalize(item.get("roadAddr")),
-                cls._normalize(item.get("roadAddrPart1")),
-                cls._normalize(item.get("jibunAddr")),
-            }
-        ]
+        for normalize in (cls._plain, cls._normalize):
+            expected = normalize(keyword)
+            matches = [
+                item
+                for item in items
+                if expected
+                in {
+                    normalize(item.get("roadAddr")),
+                    normalize(item.get("roadAddrPart1")),
+                    normalize(item.get("jibunAddr")),
+                }
+            ]
 
-        if len(matches) == 1:
-            return matches[0]
+            if len(matches) == 1:
+                return matches[0]
 
-        raise AddressResolutionError(
-            f"주소 검색 결과 다수: {len(items)}건"
-        )
+        raise AddressAmbiguousError(items)
+
+    @staticmethod
+    def _plain(value: object) -> str:
+        return " ".join(str(value or "").strip().split())
 
     @staticmethod
     def _normalize(value: object) -> str:

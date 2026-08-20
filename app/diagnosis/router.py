@@ -9,7 +9,7 @@ from app.diagnosis.external.building_ledger.selector import (BuildingLedgerSelec
 from app.diagnosis.external.building_ledger.service import (BuildingLedgerService,)
 from app.diagnosis.housing_type_resolver import (HousingTypeResolutionError,)
 from app.diagnosis.diagnosis_dependencies import get_diagnosis_pipeline
-from app.diagnosis.property_address_service import (PropertyAddressError,PropertyAddressService,)
+from app.diagnosis.property_address_service import (PropertyAddressService,)
 from app.diagnosis.property_search_service import (PropertySearchService,)
 from app.diagnosis.schemas import (
     DiagnosisRequest,
@@ -25,7 +25,7 @@ from app.diagnosis.schemas import (
     RiskWeights,
     ValuationReliability,
     ValuationSummary,
-    PropertyCandidate,
+    AddressCandidate,PropertyCandidate,
     PropertySearchRequest,
     PropertySearchResponse,
 )
@@ -137,6 +137,14 @@ def search_property(
         normalizedAddress=result.normalized_address,
         buildingName=result.building_name,
         candidates=candidates,
+        addressCandidates=[
+            AddressCandidate(
+                roadAddress=item.road_address,
+                jibunAddress=item.jibun_address,
+                buildingName=item.building_name,
+            )
+            for item in result.address_candidates
+        ],
     )
 
 
@@ -164,7 +172,6 @@ def resolve_property(
         BuildingLedgerApiError,
         BuildingLedgerSelectionError,
         HousingTypeResolutionError,
-        PropertyAddressError,
         UnitAreaError,
     ) as exc:
         raise property_http_exception(exc) from None
@@ -224,7 +231,6 @@ def analyze_diagnosis(
         BuildingLedgerApiError,
         BuildingLedgerSelectionError,
         HousingTypeResolutionError,
-        PropertyAddressError,
         UnitAreaError,
     ) as exc:
         raise property_http_exception(exc) from None
