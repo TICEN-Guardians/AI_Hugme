@@ -11,6 +11,7 @@ from app.diagnosis.housing_type_resolver import (HousingTypeResolutionError,)
 from app.diagnosis.diagnosis_dependencies import get_diagnosis_pipeline
 from app.diagnosis.property_address_service import (PropertyAddressService,)
 from app.diagnosis.property_search_service import (PropertySearchService,)
+from app.diagnosis.property_snapshot import build_property_snapshot
 from app.diagnosis.schemas import (
     DiagnosisRequest,
     DiagnosisResponse,
@@ -212,6 +213,8 @@ def resolve_property(
             unit_area.total_area
             if unit_area else None
         ),
+        # analyze 가 이 값을 그대로 돌려주면 공공 API를 다시 부르지 않는다.
+        propertySnapshot=build_property_snapshot(result),
     )
 
 @router.post(

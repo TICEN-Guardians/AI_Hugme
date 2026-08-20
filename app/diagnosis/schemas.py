@@ -173,6 +173,60 @@ class PropertyResolveRequest(ApiModel):
         max_length=100,
     )
 
+class UnitAreaSnapshot(ApiModel):
+    """전유부 면적 조회 결과 중 추론에 필요한 값만 담는다."""
+
+    dong_name: str = Field(alias="dongName")
+    ho_name: str = Field(alias="hoName")
+    floor: int
+    exclusive_area: float = Field(alias="exclusiveArea")
+    common_area: float = Field(alias="commonArea")
+    total_area: float = Field(alias="totalArea")
+
+
+class PropertySnapshot(ApiModel):
+    """properties/resolve 로 확보한 주소·건축물대장 정보를 담아 두는 그릇.
+
+    analyze 가 같은 공공 API를 다시 부르지 않도록 이 값을 그대로 돌려받아 재사용한다.
+    복원에 실패하면 기존처럼 다시 조회하므로, 형식이 어긋나도 진단은 계속된다.
+    """
+
+    road_address: str = Field(alias="roadAddress")
+    jibun_address: str = Field(alias="jibunAddress")
+    legal_dong_code: str = Field(alias="legalDongCode")
+    district: str
+    building_name: str | None = Field(default=None, alias="buildingName")
+
+    sigungu_code: str = Field(alias="sigunguCode")
+    bjdong_code: str = Field(alias="bjdongCode")
+    plat_code: str = Field(alias="platCode")
+    bun: str
+    ji: str
+
+    housing_type: HousingType = Field(alias="housingType")
+    dong_name: str | None = Field(default=None, alias="dongName")
+    ho_name: str | None = Field(default=None, alias="hoName")
+
+    ledger_feature_values: dict[str, str | int | float | None] = Field(
+        alias="ledgerFeatureValues",
+        description="건축물대장 표제부에서 뽑은 Feature 값",
+    )
+    ledger_title: dict[str, str] = Field(
+        alias="ledgerTitle",
+        description="주택유형 세부 판정에 쓰는 표제부 원본 일부",
+    )
+    ledger_title_count: int = Field(default=0, alias="ledgerTitleCount")
+    quality_blocking: list[str] = Field(
+        default_factory=list,
+        alias="qualityBlocking",
+    )
+    quality_warnings: list[str] = Field(
+        default_factory=list,
+        alias="qualityWarnings",
+    )
+    unit_area: UnitAreaSnapshot | None = Field(default=None, alias="unitArea")
+
+
 class PropertyResolveResponse(ApiModel):
     normalized_address: str = Field(
         alias="normalizedAddress",
@@ -212,6 +266,10 @@ class PropertyResolveResponse(ApiModel):
     total_area: float | None = Field(
         default=None,
         alias="totalArea",
+    )
+    property_snapshot: PropertySnapshot = Field(
+        alias="propertySnapshot",
+        description="analyze 에 그대로 돌려주면 공공 API 재조회를 건너뛴다.",
     )
 
 class DiagnosisRequest(ApiModel):
@@ -258,12 +316,24 @@ class DiagnosisRequest(ApiModel):
         gt=0,
         description="공동주택 사용자가 확인한 전용면적, ㎡",
     )
-    floor: int = Field(
-        description="사용자가 확인한 계약 대상 층",
+    floor: int | None = Field(
+        default=None,
+        description=(
+            "사용자가 확인한 계약 대상 층. "
+            "단독·다가구 모델에는 층 Feature가 없어 값이 없어도 된다."
+        ),
     )
     registry_risk: RegistryRiskPayload | None = Field(
         default=None,
         alias="registryRisk",
+    )
+    property_snapshot: PropertySnapshot | None = Field(
+        default=None,
+        alias="propertySnapshot",
+        description=(
+            "properties/resolve 결과. 있으면 주소·건축물대장 재조회를 건너뛴다. "
+            "없거나 복원에 실패하면 기존처럼 다시 조회한다."
+        ),
     )
 
 

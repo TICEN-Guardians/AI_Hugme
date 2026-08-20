@@ -41,6 +41,22 @@ DERIVED_FEATURES = {
     "계약월_파생",
 }
 
+# 파이프라인에 아직 데이터 원천이 연결되지 않아 항상 기본값으로 채워지는 Feature.
+#
+# 이런 Feature까지 fallback 으로 세면 해당 모델을 쓰는 진단은 시세 신뢰도가 항상
+# LOW 로 나와 "이번 건이 유난히 부실한가"를 구분할 수 없게 된다.
+# 그래서 fallback 집계에서 빼고 아래 경고 코드로만 알린다.
+#
+# 대지권면적(㎡)  : 매매_연립다세대 전용. 건축물대장 표제부에도 없고 등기부 파서도
+#                   아직 (대지권의 표시)를 읽지 않는다. 원천이 생기면 이 목록에서 뺀다.
+UNAVAILABLE_FEATURES = {
+    "대지권면적(㎡)",
+}
+
+UNAVAILABLE_FEATURE_WARNINGS = {
+    "대지권면적(㎡)": "LAND_RIGHT_AREA_UNAVAILABLE",
+}
+
 
 def get_feature_source(
     feature_name: str,
