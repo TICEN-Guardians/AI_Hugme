@@ -3,7 +3,10 @@ from dataclasses import dataclass
 from app.diagnosis.feature_contract import FeatureContract
 from app.diagnosis.feature_fallback import FeatureFallbackPolicy
 from app.diagnosis.feature_input import FeatureInput, FeatureValue
-from app.diagnosis.feature_sources import FeatureSource
+from app.diagnosis.feature_sources import (
+    UNAVAILABLE_FEATURES,
+    FeatureSource,
+)
 
 
 @dataclass(frozen=True)
@@ -13,6 +16,8 @@ class ModelFeatures:
     values: tuple[FeatureValue, ...]
     categorical_indices: tuple[int, ...]
     fallback_features: tuple[str, ...] = ()
+    # 원천이 없어 늘 기본값을 쓰는 Feature. 시세 신뢰도 판정에서 제외한다.
+    unavailable_features: tuple[str, ...] = ()
 
     def as_row(self) -> list[FeatureValue]:
         return list(self.values)
@@ -46,6 +51,7 @@ class FeatureBuilder:
 
         values = []
         fallback_features = []
+        unavailable_features = []
 
         for name in model.features:
             value = available.get(name)
@@ -63,7 +69,10 @@ class FeatureBuilder:
                 )
 
                 if fallback_used:
-                    fallback_features.append(name)
+                    if name in UNAVAILABLE_FEATURES:
+                        unavailable_features.append(name)
+                    else:
+                        fallback_features.append(name)
             elif value is None:
                 raise ValueError(
                     f"{model_key} Feature 누락: {name}"
@@ -83,6 +92,7 @@ class FeatureBuilder:
             values=tuple(values),
             categorical_indices=categorical_indices,
             fallback_features=tuple(fallback_features),
+            unavailable_features=tuple(unavailable_features),
         )
 
     @staticmethod

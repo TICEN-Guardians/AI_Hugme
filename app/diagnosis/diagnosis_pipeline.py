@@ -1,13 +1,22 @@
+import logging
 from dataclasses import dataclass
 from decimal import Decimal
 
+from app.diagnosis.feature_sources import UNAVAILABLE_FEATURE_WARNINGS
 from app.diagnosis.market_feature_service import MarketFeatureService
 from app.diagnosis.forced_warning import ForcedWarningResult, ForcedWarningRule
 from app.diagnosis.model.model_predictor import ModelPredictor
 from app.diagnosis.model.target_transform import PredictionResult
-from app.diagnosis.property_address_service import PropertyAddressService
+from app.diagnosis.property_address_service import (
+    PropertyAddressResult,
+    PropertyAddressService,
+)
 from app.diagnosis.property_feature_factory import PropertyFeatureFactory
 from app.diagnosis.property_matcher import PropertyMatcher
+from app.diagnosis.property_snapshot import (
+    matches_request,
+    restore_property_address_result,
+)
 from app.diagnosis.registry_risk_adapter import RegistryRiskAdapter
 from app.diagnosis.risk_indicator import (
     RiskIndicatorCalculator,
@@ -20,6 +29,8 @@ from app.diagnosis.risk_severity_factory import (
 )
 from app.diagnosis.schemas import DiagnosisRequest, HousingType
 
+
+logger = logging.getLogger(__name__)
 
 MODEL_TYPES = {
     HousingType.APARTMENT: "아파트",
@@ -59,16 +70,49 @@ class DiagnosisPipeline:
         self.market_feature_service = market_feature_service
         self.model_predictor = model_predictor
 
+    def _resolve(
+        self,
+        request: DiagnosisRequest,
+    ) -> PropertyAddressResult:
+        """주소·건축물대장 정보를 확보한다.
+
+        properties/resolve 에서 받은 스냅샷이 그대로 돌아왔으면 재사용해
+        도로명주소·건축물대장 API 재호출을 건너뛴다.
+        스냅샷이 없거나 이번 요청과 대상이 다르거나 복원에 실패하면 다시 조회한다.
+        """
+        snapshot = request.property_snapshot
+
+        if snapshot is not None:
+            if matches_request(
+                snapshot,
+                request.address,
+                request.dong_name,
+                request.ho_name,
+            ):
+                try:
+                    return restore_property_address_result(snapshot)
+                except Exception:
+                    logger.warning(
+                        "매물 스냅샷 복원 실패, 주소를 다시 조회합니다",
+                        exc_info=True,
+                    )
+            else:
+                logger.info(
+                    "매물 스냅샷이 요청과 달라 주소를 다시 조회합니다"
+                )
+
+        return self.property_address_service.resolve(
+            address=request.address,
+            dong_name=request.dong_name,
+            ho_name=request.ho_name,
+        )
+
     def analyze(
         self,
         request: DiagnosisRequest,
         land_right_area: Decimal | None = None,
     ) -> DiagnosisPipelineResult:
-        resolved = self.property_address_service.resolve(
-            address=request.address,
-            dong_name=request.dong_name,
-            ho_name=request.ho_name,
-        )
+        resolved = self._resolve(request)
 
         if (
             resolved.housing_type != HousingType.DETACHED_MULTI
@@ -150,6 +194,18 @@ class DiagnosisPipeline:
             *(f"매매:{name}" for name in sale.fallback_features),
             *(f"전세:{name}" for name in lease.fallback_features),
         }
+        # 원천이 없어 늘 기본값을 쓰는 Feature는 신뢰도를 떨어뜨리는 대신
+        # 경고로만 남긴다. (feature_sources.UNAVAILABLE_FEATURES 주석 참고)
+        warnings.update(
+            UNAVAILABLE_FEATURE_WARNINGS.get(
+                name,
+                "PROPERTY_FEATURE_UNAVAILABLE",
+            )
+            for name in (
+                *sale.unavailable_features,
+                *lease.unavailable_features,
+            )
+        )
         estimated_sale_price = round(sale.total_price)
         estimated_lease_price = round(lease.total_price)
         registry_risk = RegistryRiskAdapter.adapt(request.registry_risk)

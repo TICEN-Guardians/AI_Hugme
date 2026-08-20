@@ -12,6 +12,7 @@ class PredictionResult:
     unit_price: float | None
     total_price: float
     fallback_features: tuple[str, ...] = ()
+    unavailable_features: tuple[str, ...] = ()
 
 
 class TargetTransformer:
@@ -51,6 +52,7 @@ class TargetTransformer:
                 unit_price=None,
                 total_price=primary_value,
                 fallback_features=features.fallback_features,
+                unavailable_features=features.unavailable_features,
             )
 
         area = self._get_area(
@@ -64,6 +66,7 @@ class TargetTransformer:
             unit_price=primary_value,
             total_price=primary_value * area,
             fallback_features=features.fallback_features,
+            unavailable_features=features.unavailable_features,
         )
 
     @staticmethod
