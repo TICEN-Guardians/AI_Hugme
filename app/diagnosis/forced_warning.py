@@ -37,7 +37,16 @@ class ForcedWarningRule:
         cls,
         grade: RiskGrade,
         values: ForcedWarningInput,
+        registry_required: bool,
     ) -> ForcedWarningResult:
+        if not registry_required:
+            return ForcedWarningResult(
+                grade=grade,
+                warnings=(),
+                missing_checks=(),
+                grade_overridden=False,
+            )
+
         warnings: set[str] = set()
         missing: set[str] = set()
         minimum_grade = grade

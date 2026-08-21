@@ -85,7 +85,8 @@ class RiskRule:
             grade=grade,
             single_risk_protected=protected,
             provisional_collateral_basis=(
-                indicators.collateral_burden_rate is None
+                indicators.collateral_expected
+                and indicators.collateral_burden_rate is None
             ),
         )
 

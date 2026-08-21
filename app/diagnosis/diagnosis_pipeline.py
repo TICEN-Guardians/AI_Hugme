@@ -27,7 +27,7 @@ from app.diagnosis.risk_severity_factory import (
     RiskSeverityFactory,
     RiskSeverityResult,
 )
-from app.diagnosis.schemas import DiagnosisRequest, HousingType
+from app.diagnosis.schemas import DiagnosisMode, DiagnosisRequest, HousingType
 
 
 logger = logging.getLogger(__name__)
@@ -214,6 +214,7 @@ class DiagnosisPipeline:
             estimated_lease_price=estimated_lease_price,
             deposit=request.deposit,
             active_max_claim_amount=registry_risk.active_max_claim_amount,
+            collateral_expected=request.mode == DiagnosisMode.DETAILED,
         )
         risk_severity = RiskSeverityFactory.create(
             housing_type=resolved.housing_type,
@@ -227,6 +228,7 @@ class DiagnosisPipeline:
         forced_warning = ForcedWarningRule.apply(
             risk_score.grade,
             registry_risk.forced_warning_input,
+            registry_required=request.mode == DiagnosisMode.DETAILED,
         )
         missing_checks = {
             *risk_indicators.missing_checks,

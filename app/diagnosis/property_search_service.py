@@ -37,6 +37,8 @@ class AddressCandidateResult:
 @dataclass(frozen=True)
 class PropertySearchResult:
     normalized_address: str
+    road_address: str | None
+    jibun_address: str | None
     building_name: str | None
     candidates: tuple[PropertyCandidateResult, ...]
     address_candidates: tuple[
@@ -55,6 +57,14 @@ class PropertySearchService:
             building_ledger_client
         )
 
+    def suggest(
+        self,
+        address: str,
+    ) -> tuple[AddressCandidateResult, ...]:
+        return self._address_candidates(
+            self.address_service.suggest(address, limit=10)
+        )
+
     def search(
         self,
         address: str,
@@ -66,6 +76,8 @@ class PropertySearchService:
         except AddressAmbiguousError as exc:
             return PropertySearchResult(
                 normalized_address="",
+                road_address=None,
+                jibun_address=None,
                 building_name=None,
                 candidates=(),
                 address_candidates=self._address_candidates(
@@ -85,6 +97,8 @@ class PropertySearchService:
 
         return PropertySearchResult(
             normalized_address=resolved.road_address,
+            road_address=resolved.road_address,
+            jibun_address=resolved.jibun_address,
             building_name=resolved.building_name,
             candidates=candidates,
         )

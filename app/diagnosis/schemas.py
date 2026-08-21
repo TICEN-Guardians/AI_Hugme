@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ApiModel(BaseModel):
@@ -22,6 +22,11 @@ class HousingType(str, Enum):
     VILLA = "VILLA"
     OFFICETEL = "OFFICETEL"
     DETACHED_MULTI = "DETACHED_MULTI"
+
+
+class DiagnosisMode(str, Enum):
+    QUICK = "QUICK"
+    DETAILED = "DETAILED"
 
 
 class DiagnosisStatus(str, Enum):
@@ -114,6 +119,10 @@ class PropertySearchRequest(ApiModel):
         description="사용자가 입력한 주소",
     )
 
+class AddressSuggestionRequest(ApiModel):
+    address: str = Field(min_length=2, max_length=500)
+
+
 class PropertyCandidate(ApiModel):
     building_name: str | None = Field(
         default=None,
@@ -140,9 +149,21 @@ class AddressCandidate(ApiModel):
     )
 
 
+class AddressSuggestionResponse(ApiModel):
+    candidates: list[AddressCandidate]
+
+
 class PropertySearchResponse(ApiModel):
     normalized_address: str = Field(
         alias="normalizedAddress",
+    )
+    road_address: str | None = Field(
+        default=None,
+        alias="roadAddress",
+    )
+    jibun_address: str | None = Field(
+        default=None,
+        alias="jibunAddress",
     )
     building_name: str | None = Field(
         default=None,
@@ -278,6 +299,7 @@ class DiagnosisRequest(ApiModel):
         gt=0,
         description="SpringBoot에서 발급한 분석 식별자",
     )
+    mode: DiagnosisMode
     address: str = Field(
         min_length=1,
         max_length=500,
@@ -336,6 +358,13 @@ class DiagnosisRequest(ApiModel):
         ),
     )
 
+    @model_validator(mode="after")
+    def validate_registry_by_mode(self):
+        if self.mode == DiagnosisMode.QUICK and self.registry_risk is not None:
+            raise ValueError("간편진단에는 등기 권리정보를 포함할 수 없습니다")
+        if self.mode == DiagnosisMode.DETAILED and self.registry_risk is None:
+            raise ValueError("정밀진단에는 등기 권리정보가 필요합니다")
+        return self
 
 
 class PropertySummary(ApiModel):
@@ -488,6 +517,7 @@ class ReportDetail(ApiModel):
 
 class DiagnosisResponse(ApiModel):
     analysis_id: int = Field(alias="analysisId")
+    mode: DiagnosisMode
     status: DiagnosisStatus
     analyzed_at: datetime = Field(alias="analyzedAt")
 

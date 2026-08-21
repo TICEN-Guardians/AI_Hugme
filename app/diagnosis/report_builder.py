@@ -1,5 +1,6 @@
 from app.diagnosis.risk_rule import RiskRule
 from app.diagnosis.schemas import (
+    DiagnosisMode,
     DiagnosisRequest,
     PriceScenarioPoint,
     RegistryRiskPayload,
@@ -590,20 +591,26 @@ def build_report_detail(request: DiagnosisRequest, result, reliability) -> Repor
             metrics=[
                 ReportMetric(key="salePrice", label="예상 매매가", value=result.estimated_sale_price, unit="원"),
                 ReportMetric(key="leasePrice", label="예상 전세가", value=result.estimated_lease_price, unit="원"),
+                ReportMetric(key="deposit", label="계약 보증금", value=request.deposit, unit="원"),
                 ReportMetric(key="reliability", label="시세 신뢰도", value=reliability.value),
             ],
-        ),
-        ReportSection(
-            key="collateral",
-            title="보증금과 담보",
-            description="보증금과 등기부상 활성 근저당을 매매가와 비교한 결과입니다.",
-            metrics=[
-                ReportMetric(key="deposit", label="계약 보증금", value=request.deposit, unit="원"),
-                ReportMetric(key="collateralBurden", label="담보부담액", value=indicators.collateral_burden_amount, unit="원"),
-                ReportMetric(key="collateralRate", label="담보부담률", value=percent(indicators.collateral_burden_rate), unit="%"),
-                ReportMetric(key="shortfall", label="보증금 부족액", value=indicators.deposit_shortfall, unit="원"),
-            ],
-        ),
+        )
+    ]
+    if request.mode == DiagnosisMode.DETAILED:
+        sections.append(
+            ReportSection(
+                key="collateral",
+                title="보증금과 담보",
+                description="보증금과 등기부상 활성 근저당을 매매가와 비교한 결과입니다.",
+                metrics=[
+                    ReportMetric(key="deposit", label="계약 보증금", value=request.deposit, unit="원"),
+                    ReportMetric(key="collateralBurden", label="담보부담액", value=indicators.collateral_burden_amount, unit="원"),
+                    ReportMetric(key="collateralRate", label="담보부담률", value=percent(indicators.collateral_burden_rate), unit="%"),
+                    ReportMetric(key="shortfall", label="보증금 부족액", value=indicators.deposit_shortfall, unit="원"),
+                ],
+            )
+        )
+    sections.append(
         ReportSection(
             key="riskScore",
             title="위험점수",
@@ -615,17 +622,21 @@ def build_report_detail(request: DiagnosisRequest, result, reliability) -> Repor
                 ReportMetric(key="property", label="주택 특성", value=result.risk_score.property, unit="점"),
                 ReportMetric(key="market", label="시장 상황", value=result.risk_score.market, unit="점"),
             ],
-        ),
-    ]
+        )
+    )
 
     scenarios = [
         price_scenario(key, burden_rate, result.estimated_sale_price)
         for key, burden_rate in (indicators.price_drop_scenarios or {}).items()
     ]
-    actions = recommended_actions(result)
+    actions = recommended_actions(request, result)
 
     return ReportDetail(
-        title="전세 위험도 진단 결과",
+        title=(
+            "간편 전세 위험도 진단 결과"
+            if request.mode == DiagnosisMode.QUICK
+            else "정밀 전세 위험도 진단 결과"
+        ),
         gradeLabel=GRADE_LABELS[final_grade],
         sections=sections,
         notices=notices,
@@ -644,27 +655,42 @@ def percent(value: float | None) -> float | None:
     return round(value * 100, 2) if value is not None else None
 
 
-def recommended_actions(result) -> list[ReportAction]:
-    actions = [
-        ReportAction(
-            label="등기부등본 재발급",
-            description="계약 직전에 등기부등본을 다시 발급해 권리 변동을 확인하세요.",
-        )
-    ]
-    if result.forced_warning.warnings:
+def recommended_actions(
+    request: DiagnosisRequest,
+    result,
+) -> list[ReportAction]:
+    actions = []
+    if request.mode == DiagnosisMode.QUICK:
         actions.append(
             ReportAction(
-                label="계약 진행 보류",
-                description="확인된 등기 위험이 해소되기 전에는 계약 진행을 보류하세요.",
+                label="정밀진단으로 추가 확인",
+                description=(
+                    "등기부등본을 첨부하는 정밀진단으로 근저당, 압류, "
+                    "소유자 일치 여부를 추가 확인하세요."
+                ),
             )
         )
-    if result.missing_checks:
+    else:
         actions.append(
             ReportAction(
-                label="미확인 항목 확인",
-                description="미확인 항목을 확인한 뒤 최종 계약 여부를 결정하세요.",
+                label="등기부등본 재발급",
+                description="계약 직전에 등기부등본을 다시 발급해 권리 변동을 확인하세요.",
             )
         )
+        if result.forced_warning.warnings:
+            actions.append(
+                ReportAction(
+                    label="계약 진행 보류",
+                    description="확인된 등기 위험이 해소되기 전에는 계약 진행을 보류하세요.",
+                )
+            )
+        if result.missing_checks:
+            actions.append(
+                ReportAction(
+                    label="미확인 항목 확인",
+                    description="미확인 항목을 확인한 뒤 최종 계약 여부를 결정하세요.",
+                )
+            )
     actions.append(
         ReportAction(
             label="보증보험 가입 확인",

@@ -13,6 +13,8 @@ from app.diagnosis.property_address_service import (PropertyAddressService,)
 from app.diagnosis.property_search_service import (PropertySearchService,)
 from app.diagnosis.property_snapshot import build_property_snapshot
 from app.diagnosis.schemas import (
+    AddressSuggestionRequest,
+    AddressSuggestionResponse,
     DiagnosisRequest,
     DiagnosisResponse,
     DiagnosisStatus,
@@ -136,6 +138,8 @@ def search_property(
 
     return PropertySearchResponse(
         normalizedAddress=result.normalized_address,
+        roadAddress=result.road_address,
+        jibunAddress=result.jibun_address,
         buildingName=result.building_name,
         candidates=candidates,
         addressCandidates=[
@@ -146,6 +150,31 @@ def search_property(
             )
             for item in result.address_candidates
         ],
+    )
+
+
+@router.post(
+    "/properties/suggestions",
+    response_model=AddressSuggestionResponse,
+    status_code=status.HTTP_200_OK,
+)
+def suggest_address(
+    request: AddressSuggestionRequest,
+) -> AddressSuggestionResponse:
+    try:
+        candidates = create_property_search_service().suggest(request.address)
+    except (AddressApiError, ValueError) as exc:
+        raise property_http_exception(exc) from None
+
+    return AddressSuggestionResponse(
+        candidates=[
+            AddressCandidate(
+                roadAddress=item.road_address,
+                jibunAddress=item.jibun_address,
+                buildingName=item.building_name,
+            )
+            for item in candidates
+        ]
     )
 
 
@@ -256,6 +285,7 @@ def analyze_diagnosis(
 
     return DiagnosisResponse(
         analysisId=request.analysis_id,
+        mode=request.mode,
         status=DiagnosisStatus.COMPLETED,
         analyzedAt=datetime.now(timezone.utc),
         property=PropertySummary(
