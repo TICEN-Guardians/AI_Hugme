@@ -11,7 +11,8 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 
-from app.ocr import file_utils, ocr_engine, parser
+from app.ocr import parser
+from app.ocr.registry_pdf import RegistryPdfError, load_registry_pdf
 from app.ocr.matcher import find_bad_landlord_matches
 from app.ocr.registry_repository import save_registry_result, save_watchlist_checks
 from app.ocr.schemas import (
@@ -36,71 +37,42 @@ async def ocr_register(
     if not files:
         raise HTTPException(status_code=400, detail="파일이 없습니다.")
 
-    filenames = [(f.filename or "").lower() for f in files]
-    content_types = [(f.content_type or "").lower() for f in files]
-    is_pdf_flags = [
-        ct == "application/pdf" or fn.endswith(".pdf")
-        for ct, fn in zip(content_types, filenames)
-    ]
-
-    if any(is_pdf_flags) and len(files) > 1:
+    if len(files) != 1:
         raise HTTPException(
             status_code=400,
-            detail="PDF는 한 번에 1개만 업로드해주세요. (여러 장은 촬영 이미지에서만 지원)",
+            detail="인터넷등기소에서 발급한 PDF 파일 1개를 업로드해 주세요.",
         )
 
-    ocr_confidence: float | None = None  # pdf_text 경로는 OCR 자체가 없어서 None 유지
-
-    if is_pdf_flags and is_pdf_flags[0]:
-        content = await files[0].read()
-        if not content:
-            raise HTTPException(status_code=400, detail="빈 파일입니다.")
-
-        text = file_utils.extract_pdf_text(content)
-        if text:
-            source_type = "pdf_text"
-        else:
-            images = file_utils.pdf_to_images(content)
-            text, ocr_confidence = ocr_engine.run_ocr_multi(images)
-            source_type = "pdf_ocr"
-    else:
-        page_texts = []
-        page_confidences = []
-        for f in files:
-            content = await f.read()
-            if not content:
-                raise HTTPException(status_code=400, detail=f"{f.filename}이 빈 파일입니다.")
-            try:
-                img = file_utils.bytes_to_image(content)
-            except ValueError as e:
-                raise HTTPException(status_code=400, detail=f"{f.filename}: {e}")
-
-            img = file_utils.preprocess_photo(img)
-            page_text, page_conf = ocr_engine.run_ocr(img)
-            page_texts.append(page_text)
-            if page_conf is not None:
-                page_confidences.append(page_conf)
-
-        text = "\n".join(page_texts)
-        ocr_confidence = (
-            sum(page_confidences) / len(page_confidences) if page_confidences else None
+    uploaded = files[0]
+    filename = (uploaded.filename or "").lower()
+    content_type = (uploaded.content_type or "").lower()
+    if content_type != "application/pdf" and not filename.endswith(".pdf"):
+        raise HTTPException(
+            status_code=400,
+            detail="등기부등본은 PDF 파일만 업로드할 수 있습니다.",
         )
-        source_type = "image_ocr" if len(files) == 1 else "image_ocr_multi"
 
-    if not text.strip():
-        raise HTTPException(status_code=422, detail="텍스트를 추출하지 못했습니다.")
+    content = await uploaded.read()
+    try:
+        registry_document = load_registry_pdf(content)
+    except RegistryPdfError as exc:
+        client_error_codes = {
+            "EMPTY_FILE",
+            "FILE_TOO_LARGE",
+            "NOT_PDF",
+            "BROKEN_PDF",
+            "PASSWORD_PROTECTED",
+            "INVALID_PAGE_COUNT",
+        }
+        status_code = 400 if exc.code in client_error_codes else 422
+        raise HTTPException(
+            status_code=status_code,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
 
-    if source_type == "pdf_text":
-        parse_confidence = "HIGH"
-    elif ocr_confidence is None:
-        parse_confidence = "UNKNOWN"
-    elif ocr_confidence >= 0.9:
-        parse_confidence = "HIGH"
-    elif ocr_confidence >= 0.7:
-        parse_confidence = "MEDIUM"
-    else:
-        parse_confidence = "LOW"
-
+    text = registry_document.text
+    source_type = "pdf_text"
+    parse_confidence = "HIGH"
     fields = parser.parse_register_fields(text)
     rights = fields["registry_rights"]
 

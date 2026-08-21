@@ -27,9 +27,10 @@ class RightEntry(BaseModel):
     section: str = Field(..., description="갑구 | 을구")
     rank_no: str = Field(..., description="순위번호 (부기등기는 '1-1' 형태)")
     kind: str = Field(..., description="rightType: MORTGAGE/SEIZURE/PROVISIONAL_SEIZURE/"
-                                       "PROVISIONAL_DISPOSITION/AUCTION/TRUST/JEONSE_RIGHT/"
+                                       "PROVISIONAL_DISPOSITION/PROVISIONAL_REGISTRATION/"
+                                       "AUCTION/TRUST/JEONSE_RIGHT/"
                                        "LEASEHOLD_REGISTRATION/OWNERSHIP/MORTGAGE_AMEND/"
-                                       "CANCELLATION/OTHER")
+                                       "MORTGAGE_TRANSFER/CANCELLATION/OTHER")
     status: str = Field(..., description="ACTIVE | CANCELLED (말소 항목의 순위번호 참조로 판정)")
     receipt_no: str | None = Field(None, description="접수번호")
     registered_at: str | None = Field(None, description="접수일 (YYYY-MM-DD)")

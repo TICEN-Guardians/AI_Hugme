@@ -71,6 +71,7 @@ _PURPOSE_PRIORITY = [
     ("압류", "SEIZURE"),
     ("가처분", "PROVISIONAL_DISPOSITION"),
     ("신탁", "TRUST"),
+    ("가등기", "PROVISIONAL_REGISTRATION"),
     ("소유권보존", "OWNERSHIP"),
     ("소유권이전", "OWNERSHIP"),
     ("공유자전원", "OWNERSHIP"),
@@ -81,7 +82,6 @@ _PURPOSE_PRIORITY = [
     ("주택임차권", "LEASEHOLD_REGISTRATION"),
     ("민간임대주택", "OTHER"),
     ("등기명의인표시", "OTHER"),
-    ("가등기", "PROVISIONAL_REGISTRATION"),
 ]
 _PURPOSE_ALT = "|".join(k for k, _ in _PURPOSE_PRIORITY)
 
