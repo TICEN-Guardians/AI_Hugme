@@ -4,17 +4,14 @@ from app.diagnosis.external.address.schemas import (
     AddressSearchResult,
 )
 
-
 class AddressApiError(RuntimeError):
     pass
-
 
 class AddressClient:
     URL = (
         "https://business.juso.go.kr/"
         "addrlink/addrLinkApi.do"
     )
-
     def __init__(
         self,
         confirmation_key: str,

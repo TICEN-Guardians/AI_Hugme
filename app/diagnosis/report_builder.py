@@ -296,7 +296,8 @@ def lease_gap_finding(deposit: int, lease: int, gap_rate: float) -> ReportFindin
     elif diff < 0:
         description = (
             f"계약 보증금 {money(deposit)}이 AI 예상 전세가 {money(lease)}보다 "
-            f"{money(-diff)}({rate_text(abs(gap_rate))}) 낮습니다."
+            f"{money(-diff)}({rate_text(abs(gap_rate))}) 낮습니다. "
+            "보증금이 전세시세보다 낮아 역전세로 보증금을 못 돌려받을 위험은 낮은 편입니다."
         )
     else:
         description = f"계약 보증금이 AI 예상 전세가 {money(lease)}와 같은 수준입니다."
@@ -346,7 +347,11 @@ def recovery_finding(deposit: int, indicators) -> ReportFinding | None:
 
     drop_20 = (indicators.price_drop_scenarios or {}).get("drop_20")
     if drop_20 is not None:
-        description += f" 매매가가 20% 하락하면 담보부담률은 {rate_text(drop_20)}가 됩니다."
+        description += (
+            f" 매매가가 20% 하락해도 담보부담률은 {rate_text(drop_20)}로 안전 구간입니다."
+            if RiskRule.dtv_verdict(drop_20) == "SAFE"
+            else f" 매매가가 20% 하락하면 담보부담률은 {rate_text(drop_20)}가 됩니다."
+        )
 
     return ReportFinding(title="보증금 회수 여력", description=description)
 
@@ -455,12 +460,21 @@ def summary_collateral_text(request: DiagnosisRequest, result) -> str | None:
     if indicators.recoverable_amount is None:
         return None
 
+    # 담보부담률이 4%대인데 "여유가 빠르게 줄어든다"고 하면 사실과 어긋난다.
+    # 20% 하락 시나리오가 여전히 안전 구간이면 그렇다고 말한다.
     drop_20 = (indicators.price_drop_scenarios or {}).get("drop_20")
-    tail = (
-        f" 매매가가 20% 하락하면 담보부담률이 {rate_text(drop_20)}까지 올라 여유가 빠르게 줄어듭니다."
-        if drop_20 is not None
-        else ""
-    )
+    if drop_20 is None:
+        tail = ""
+    elif RiskRule.dtv_verdict(drop_20) == "SAFE":
+        tail = (
+            f" 매매가가 20% 하락해도 담보부담률은 {rate_text(drop_20)}로 "
+            "안전 구간에 머물러 담보 여유는 넉넉합니다."
+        )
+    else:
+        tail = (
+            f" 매매가가 20% 하락하면 담보부담률이 {rate_text(drop_20)}까지 올라 "
+            "여유가 빠르게 줄어듭니다."
+        )
 
     shortfall = indicators.deposit_shortfall or 0
     if shortfall > 0:
