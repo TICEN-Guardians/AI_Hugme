@@ -101,8 +101,10 @@ class OcrRegisterResponse(BaseModel):
     )
     parse_confidence: str = Field(
     ...,
-    description="HIGH | MEDIUM | LOW | UNKNOWN. pdf_text는 OCR을 안 거쳐 인식오류 개념이 "
-                "없으므로 HIGH 고정. pdf_ocr/image_ocr은 RapidOCR 인식 점수 기반.",
+    description=(
+        "HIGH | MEDIUM | LOW | UNKNOWN. PDF 원문에 존재하는 근거와 핵심 필드·"
+        "섹션·금액 검증 결과를 기준으로 계산."
+    ),
     examples=["HIGH"],
     )
     parsed_at: str | None = Field(None, description="파싱 수행 시각")
@@ -136,7 +138,7 @@ class OcrRegisterResponse(BaseModel):
     source_type: str = Field(
         ...,
         description="텍스트를 얻은 경로",
-        examples=["pdf_text", "pdf_ocr", "image_ocr", "image_ocr_multi"],
+        examples=["pdf_llm"],
     )
 
 class OwnerMatchResult(BaseModel):

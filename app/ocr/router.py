@@ -6,13 +6,16 @@ main.py에서는 아래처럼 include만 하면 됨:
     from app.ocr.router import router as ocr_router
     app.include_router(ocr_router, prefix="/register", tags=["ocr"])
 """
+import asyncio
 import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 
-from app.ocr import parser
 from app.ocr.registry_pdf import RegistryPdfError, load_registry_pdf
+from app.ocr.registry_llm import extract_registry_pdf
+from app.ocr.registry_resolver import resolve_registry_extraction
+from app.ocr.registry_merge import RegistryMergeError, merge_registry_results
 from app.ocr.matcher import find_bad_landlord_matches
 from app.ocr.registry_repository import save_registry_result, save_watchlist_checks
 from app.ocr.schemas import (
@@ -30,56 +33,106 @@ _STATUS_PRIORITY = {"MATCH_HIGH": 3, "MATCH_NAME_ONLY": 2, "UNKNOWN": 1, "NO_MAT
 
 
 @router.post("/ocr", response_model=OcrRegisterResponse)
-async def ocr_register(
+async def analyze_register(
     files: list[UploadFile] = File(...),
     analysis_id: str = Form(...),
 ):
     if not files:
         raise HTTPException(status_code=400, detail="파일이 없습니다.")
 
-    if len(files) != 1:
+    if len(files) > 2:
         raise HTTPException(
             status_code=400,
-            detail="인터넷등기소에서 발급한 PDF 파일 1개를 업로드해 주세요.",
+            detail="등기부 PDF는 집합건물 1개 또는 같은 주소의 토지·건물 2개까지 업로드할 수 있습니다.",
         )
 
-    uploaded = files[0]
-    filename = (uploaded.filename or "").lower()
-    content_type = (uploaded.content_type or "").lower()
-    if content_type != "application/pdf" and not filename.endswith(".pdf"):
-        raise HTTPException(
-            status_code=400,
-            detail="등기부등본은 PDF 파일만 업로드할 수 있습니다.",
-        )
+    uploaded_documents = []
+    for uploaded in files:
+        filename = (uploaded.filename or "").lower()
+        content_type = (uploaded.content_type or "").lower()
+        if content_type != "application/pdf" and not filename.endswith(".pdf"):
+            raise HTTPException(
+                status_code=400,
+                detail="등기부등본은 PDF 파일만 업로드할 수 있습니다.",
+            )
 
-    content = await uploaded.read()
+        content = await uploaded.read()
+        try:
+            registry_document = load_registry_pdf(content)
+        except RegistryPdfError as exc:
+            client_error_codes = {
+                "EMPTY_FILE",
+                "FILE_TOO_LARGE",
+                "NOT_PDF",
+                "BROKEN_PDF",
+                "PASSWORD_PROTECTED",
+                "INVALID_PAGE_COUNT",
+            }
+            status_code = 400 if exc.code in client_error_codes else 422
+            raise HTTPException(
+                status_code=status_code,
+                detail={
+                    "code": exc.code,
+                    "message": f"{uploaded.filename or 'registry.pdf'}: {exc}",
+                },
+            ) from exc
+        uploaded_documents.append((uploaded, content, registry_document))
+
     try:
-        registry_document = load_registry_pdf(content)
-    except RegistryPdfError as exc:
-        client_error_codes = {
-            "EMPTY_FILE",
-            "FILE_TOO_LARGE",
-            "NOT_PDF",
-            "BROKEN_PDF",
-            "PASSWORD_PROTECTED",
-            "INVALID_PAGE_COUNT",
-        }
-        status_code = 400 if exc.code in client_error_codes else 422
+        extractions = await asyncio.gather(*[
+            extract_registry_pdf(
+                content,
+                uploaded.filename or "registry.pdf",
+                registry_document.page_texts,
+            )
+            for uploaded, content, registry_document in uploaded_documents
+        ])
+        resolved_results = [
+            resolve_registry_extraction(extracted, registry_document.page_texts)
+            for extracted, (_, _, registry_document)
+            in zip(extractions, uploaded_documents)
+        ]
+    except Exception as exc:
+        missing_api_key = "OPENAI_API_KEY" in str(exc)
+        logger.exception("등기부 LLM 구조화 실패 (analysis_id=%s)", analysis_id)
         raise HTTPException(
-            status_code=status_code,
-            detail={"code": exc.code, "message": str(exc)},
+            status_code=503 if missing_api_key else 502,
+            detail={
+                "code": (
+                    "REGISTRY_EXTRACTION_NOT_CONFIGURED"
+                    if missing_api_key
+                    else "REGISTRY_EXTRACTION_FAILED"
+                ),
+                "message": (
+                    "등기부 분석 서비스 설정이 완료되지 않았습니다."
+                    if missing_api_key
+                    else "등기부 내용을 구조화하지 못했습니다. 잠시 후 다시 시도해 주세요."
+                ),
+            },
         ) from exc
 
-    text = registry_document.text
-    source_type = "pdf_text"
-    parse_confidence = "HIGH"
-    fields = parser.parse_register_fields(text)
+    filenames = [
+        uploaded.filename or "registry.pdf"
+        for uploaded, _, _ in uploaded_documents
+    ]
+    try:
+        fields = merge_registry_results(resolved_results, filenames)
+    except RegistryMergeError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    text = "\n\n".join(
+        f"[FILE {filename}]\n{registry_document.text}"
+        for filename, (_, _, registry_document)
+        in zip(filenames, uploaded_documents)
+    )
     rights = fields["registry_rights"]
 
     return OcrRegisterResponse(
         analysis_id=analysis_id,
         parse_status=fields["parse_status"],
-        parse_confidence=parse_confidence,
+        parse_confidence=fields["parse_confidence"],
         parsed_at=datetime.now(timezone.utc).isoformat(),
         raw_address=fields["property_address"],
         property_address=fields["property_address"],
@@ -106,7 +159,7 @@ async def ocr_register(
         ),
         has_cancellation_mention=fields["has_cancellation_mention"],
         raw_text=text,
-        source_type=source_type,
+        source_type="pdf_llm",
     )
 
 
@@ -119,7 +172,7 @@ async def register_check(
     등기부등본 업로드 -> OCR/파싱(권리 포함) -> 최종 소유자(들)를 bad_landlord 명단과
     대조까지 한 번에 처리. 위험도 진단 흐름에서 실제로 쓰는 엔드포인트.
     """
-    ocr_result = await ocr_register(files=files, analysis_id=analysis_id)
+    ocr_result = await analyze_register(files=files, analysis_id=analysis_id)
 
     results = []
 

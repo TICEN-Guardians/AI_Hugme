@@ -1,34 +1,10 @@
 import base64
-import os
-from pathlib import Path
 
-from dotenv import load_dotenv
-from openai import AsyncOpenAI
-
+from app.llm_client import get_openai_client
 from .schemas import LlmChecklistResult
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-INFRA_ENV_PATH = PROJECT_ROOT.parent / "Infra_Hugme" / ".env"
-
-load_dotenv(INFRA_ENV_PATH)
 
 MODEL = "gpt-4o-mini"
-
-_client: AsyncOpenAI | None = None
-
-
-def get_client() -> AsyncOpenAI:
-    global _client
-
-    if _client is not None:
-        return _client
-
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY 환경변수가 설정되지 않았습니다.")
-
-    _client = AsyncOpenAI(api_key=api_key)
-    return _client
 
 
 SYSTEM_PROMPT = """
@@ -123,7 +99,7 @@ officetelResidentialMarked, landlordProxyContract.
     encoded_image = base64.b64encode(image_bytes).decode("ascii")
     image_url = f"data:{media_type};base64,{encoded_image}"
 
-    response = await get_client().responses.parse(
+    response = await get_openai_client().responses.parse(
         model=MODEL,
         instructions=SYSTEM_PROMPT,
         input=[
