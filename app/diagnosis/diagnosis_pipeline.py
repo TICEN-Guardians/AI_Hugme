@@ -28,6 +28,10 @@ from app.diagnosis.risk_severity_factory import (
     RiskSeverityResult,
 )
 from app.diagnosis.schemas import DiagnosisMode, DiagnosisRequest, HousingType
+from app.diagnosis.external.rtms.schemas import (
+    MarketComparableResult,
+)
+from app.diagnosis.external.rtms.service import MarketComparableService
 
 
 logger = logging.getLogger(__name__)
@@ -55,6 +59,7 @@ class DiagnosisPipelineResult:
     warnings: tuple[str, ...]
     missing_checks: tuple[str, ...]
     fallback_features: tuple[str, ...]
+    market_comparables: MarketComparableResult
 
 
 class DiagnosisPipeline:
@@ -64,10 +69,12 @@ class DiagnosisPipeline:
         property_matcher: PropertyMatcher,
         market_feature_service: MarketFeatureService,
         model_predictor: ModelPredictor,
+        market_comparable_service: MarketComparableService | None = None,
     ) -> None:
         self.property_address_service = property_address_service
         self.property_matcher = property_matcher
         self.market_feature_service = market_feature_service
+        self.market_comparable_service = market_comparable_service
         self.model_predictor = model_predictor
 
     def _resolve(
@@ -233,6 +240,28 @@ class DiagnosisPipeline:
             *risk_indicators.missing_checks,
             *forced_warning.missing_checks,
         }
+        comparable_area = (
+            request.contract_area
+            if resolved.housing_type == HousingType.DETACHED_MULTI
+            else request.exclusive_area
+        )
+        if self.market_comparable_service is None:
+            market_comparables = MarketComparableResult.unavailable(
+                "RTMS_API_NOT_CONFIGURED"
+            )
+        else:
+            market_comparables = self.market_comparable_service.analyze(
+                housing_type=resolved.housing_type,
+                district_code=resolved.address.legal_dong_code[:5],
+                district=resolved.address.district,
+                building_name=(
+                    resolved.address.building_name
+                    or resolved.building_ledger.selected_title.get("bldNm")
+                ),
+                area=float(comparable_area),
+                contract_date=request.contract_date,
+                user_deposit=request.deposit,
+            )
 
         return DiagnosisPipelineResult(
             normalized_address=resolved.address.road_address,
@@ -248,4 +277,5 @@ class DiagnosisPipeline:
             warnings=tuple(sorted(warnings)),
             missing_checks=tuple(sorted(missing_checks)),
             fallback_features=tuple(sorted(fallback_features)),
+            market_comparables=market_comparables,
         )

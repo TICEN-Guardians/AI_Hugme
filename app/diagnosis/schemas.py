@@ -385,6 +385,50 @@ class ValuationSummary(ApiModel):
     )
 
 
+class MarketComparableStatus(str, Enum):
+    AVAILABLE = "AVAILABLE"
+    INSUFFICIENT = "INSUFFICIENT"
+    UNAVAILABLE = "UNAVAILABLE"
+
+
+class MarketComparableBin(ApiModel):
+    lower_bound: int = Field(alias="lowerBound", ge=0)
+    upper_bound: int = Field(alias="upperBound", ge=0)
+    count: int = Field(ge=0)
+
+
+class MarketComparableSummary(ApiModel):
+    status: MarketComparableStatus
+    source: str
+    scope: str | None = None
+    sample_count: int = Field(alias="sampleCount", ge=0)
+    period_start: date | None = Field(default=None, alias="periodStart")
+    period_end: date | None = Field(default=None, alias="periodEnd")
+    area_min: float | None = Field(default=None, alias="areaMin")
+    area_max: float | None = Field(default=None, alias="areaMax")
+    minimum: int | None = Field(default=None, ge=0)
+    percentile_25: int | None = Field(
+        default=None,
+        alias="percentile25",
+        ge=0,
+    )
+    median: int | None = Field(default=None, ge=0)
+    percentile_75: int | None = Field(
+        default=None,
+        alias="percentile75",
+        ge=0,
+    )
+    maximum: int | None = Field(default=None, ge=0)
+    user_deposit_percentile: float | None = Field(
+        default=None,
+        alias="userDepositPercentile",
+        ge=0,
+        le=100,
+    )
+    bins: list[MarketComparableBin] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class IndicatorSummary(ApiModel):
     lease_to_sale_rate: float = Field(alias="leaseToSaleRate")
     lease_price_gap_rate: float = Field(
@@ -523,6 +567,9 @@ class DiagnosisResponse(ApiModel):
 
     property: PropertySummary
     valuation: ValuationSummary
+    market_comparables: MarketComparableSummary = Field(
+        alias="marketComparables"
+    )
     indicators: IndicatorSummary
     risk: RiskSummary
 
