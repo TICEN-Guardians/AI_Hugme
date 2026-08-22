@@ -1,50 +1,27 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 
-from app.inference import predict_batch, predict_one
-from app.model_loader import load_model
-from app.schemas import (
-    BatchPredictRequest,
-    BatchPredictResponse,
-    PredictRequest,
-    PredictResponse,
+from app.diagnosis.model.model_warmup import (
+    ModelPrefetchStatus,
+    get_model_prefetch_status,
+    start_model_prefetch,
 )
-
-from app.ocr.router import router as ocr_router
 from app.diagnosis.router import router as diagnosis_router
-from app.ocr_checklist.router import router as ocr_checklist_router
-
 from app.ocr.ocr_engine import load_engine
-from app.diagnosis.model.model_warmup import start_model_prefetch
-
+from app.ocr.router import router as ocr_router
+from app.ocr_checklist.router import router as ocr_checklist_router
 
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("hugme-ai")
-
-# Model은 Application 실행 중 메모리에 보관한다.
-ml = {"model": None}
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_engine()
-    # 현재는 실제 전세·매매 시세추정 Model이 아직 준비되지 않았으므로
-    # Model Load에 실패하더라도 FastAPI Application 자체는 실행한다.
-    try:
-        ml["model"] = load_model()
-        logger.info("Model load completed.")
-    except Exception:
-        ml["model"] = None
-        logger.warning(
-            "Model is not available yet. FastAPI starts without a model."
-        )
     start_model_prefetch()
     yield
-    # Application 종료 시 Model 참조를 정리한다.
-    ml["model"] = None
 
 
 app = FastAPI(
@@ -57,51 +34,28 @@ app.include_router(
     prefix="/checklist",
     tags=["ocr-checklist"],
 )
-
-app.include_router(ocr_router, prefix="/register", tags=["ocr"])
+app.include_router(
+    ocr_router,
+    prefix="/register",
+    tags=["ocr"],
+)
 app.include_router(diagnosis_router)
+
 
 @app.get("/health")
 async def health():
+    prefetch_status = get_model_prefetch_status()
+    service_status = {
+        ModelPrefetchStatus.PENDING: "starting",
+        ModelPrefetchStatus.READY: "ok",
+        ModelPrefetchStatus.FAILED: "degraded",
+        ModelPrefetchStatus.DISABLED: "ok",
+    }[prefetch_status]
+
     return {
-        "status": "ok",
-        "model_loaded": ml["model"] is not None,
+        "status": service_status,
+        "diagnosisModels": {
+            "prefetchStatus": prefetch_status.value,
+            "ready": prefetch_status == ModelPrefetchStatus.READY,
+        },
     }
-
-
-@app.post("/predict", response_model=PredictResponse)
-async def predict(req: PredictRequest):
-    if ml["model"] is None:
-        raise HTTPException(
-            status_code=503,
-            detail="model not loaded",
-        )
-
-    try:
-        value = predict_one(ml["model"], req.features)
-    except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail=str(e),
-        )
-
-    return PredictResponse(prediction=value)
-
-
-@app.post("/predict/batch", response_model=BatchPredictResponse)
-async def predict_batch_endpoint(req: BatchPredictRequest):
-    if ml["model"] is None:
-        raise HTTPException(
-            status_code=503,
-            detail="model not loaded",
-        )
-
-    try:
-        values = predict_batch(ml["model"], req.instances)
-    except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail=str(e),
-        )
-
-    return BatchPredictResponse(predictions=values)
