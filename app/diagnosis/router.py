@@ -13,6 +13,8 @@ from app.diagnosis.property_address_service import (PropertyAddressService,)
 from app.diagnosis.property_search_service import (PropertySearchService,)
 from app.diagnosis.property_snapshot import build_property_snapshot
 from app.diagnosis.schemas import (
+    AddressSuggestionRequest,
+    AddressSuggestionResponse,
     DiagnosisRequest,
     DiagnosisResponse,
     DiagnosisStatus,
@@ -136,6 +138,8 @@ def search_property(
 
     return PropertySearchResponse(
         normalizedAddress=result.normalized_address,
+        roadAddress=result.road_address,
+        jibunAddress=result.jibun_address,
         buildingName=result.building_name,
         candidates=candidates,
         addressCandidates=[
@@ -146,6 +150,31 @@ def search_property(
             )
             for item in result.address_candidates
         ],
+    )
+
+
+@router.post(
+    "/properties/suggestions",
+    response_model=AddressSuggestionResponse,
+    status_code=status.HTTP_200_OK,
+)
+def suggest_address(
+    request: AddressSuggestionRequest,
+) -> AddressSuggestionResponse:
+    try:
+        candidates = create_property_search_service().suggest(request.address)
+    except (AddressApiError, ValueError) as exc:
+        raise property_http_exception(exc) from None
+
+    return AddressSuggestionResponse(
+        candidates=[
+            AddressCandidate(
+                roadAddress=item.road_address,
+                jibunAddress=item.jibun_address,
+                buildingName=item.building_name,
+            )
+            for item in candidates
+        ]
     )
 
 
@@ -248,7 +277,16 @@ def analyze_diagnosis(
 
     indicators = result.risk_indicators
     score = result.risk_score
+    final_score = result.forced_warning.score
     final_grade = result.forced_warning.grade
+    score_floor = max(
+        (
+            value
+            for value in (score.policy_floor, result.forced_warning.score_floor)
+            if value is not None
+        ),
+        default=None,
+    )
     reliability = valuation_reliability(result)
     report_detail = explain_report(
         build_report_detail(request, result, reliability)
@@ -256,6 +294,7 @@ def analyze_diagnosis(
 
     return DiagnosisResponse(
         analysisId=request.analysis_id,
+        mode=request.mode,
         status=DiagnosisStatus.COMPLETED,
         analyzedAt=datetime.now(timezone.utc),
         property=PropertySummary(
@@ -288,22 +327,29 @@ def analyze_diagnosis(
             ),
         ),
         risk=RiskSummary(
-            score=score.total,
+            score=final_score,
+            baseScore=score.base_total,
             grade=final_grade,
             breakdown=RiskBreakdown(
-                underwater=score.underwater,
-                rollover=score.rollover,
-                property=score.property,
-                market=score.market,
+                priceBurden=score.price_burden,
+                leaseMarketDeviation=score.lease_market_deviation,
+                marketTrend=score.market_trend,
+                policyAdjustment=score.policy_adjustment,
+                rightsAdjustment=final_score - score.total,
             ),
             weights=RiskWeights(
-                underwater=RiskRule.LIMITS["underwater"],
-                rollover=RiskRule.LIMITS["rollover"],
-                property=RiskRule.LIMITS["property"],
-                market=RiskRule.LIMITS["market"],
+                priceBurden=RiskRule.LIMITS["price_burden"],
+                leaseMarketDeviation=RiskRule.LIMITS["lease_market_deviation"],
+                marketTrend=RiskRule.LIMITS["market_trend"],
                 total=sum(RiskRule.LIMITS.values()),
             ),
-            gradeOverridden=result.forced_warning.grade_overridden,
+            scoreFloor=score_floor,
+            floorReasons=list(
+                dict.fromkeys(
+                    (*score.floor_reasons, *result.forced_warning.floor_reasons)
+                )
+            ),
+            scoreFloorApplied=final_score != score.base_total,
             provisionalCollateralBasis=score.provisional_collateral_basis,
         ),
         forcedWarnings=list(result.forced_warning.warnings),

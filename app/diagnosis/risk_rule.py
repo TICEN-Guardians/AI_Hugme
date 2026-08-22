@@ -6,35 +6,31 @@ from app.diagnosis.schemas import RiskGrade
 
 @dataclass(frozen=True)
 class RiskSeverityInput:
-    volatility: float
     sale_price_decline: float
     lease_price_decline: float
-    property: float
-    market: float
 
 
 @dataclass(frozen=True)
 class RiskScoreResult:
-    underwater: int
-    rollover: int
-    property: int
-    market: int
+    price_burden: int
+    lease_market_deviation: int
+    market_trend: int
+    policy_adjustment: int
+    base_total: int
     total: int
     grade: RiskGrade
-    single_risk_protected: bool
+    policy_floor: int | None
+    floor_reasons: tuple[str, ...]
     provisional_collateral_basis: bool
 
 
 class RiskRule:
     LIMITS = {
-        "underwater": 47,
-        "rollover": 35,
-        "property": 10,
-        "market": 8,
+        "price_burden": 45,
+        "lease_market_deviation": 45,
+        "market_trend": 10,
     }
 
-    # 담보부담률(또는 전세가율) 구간. 국내에서 통용되는 깡통전세 기준을 따른다.
-    #   ~70%  안전 / 70~80%  주의 / 80~90%  위험 / 90%~  매우 위험
     DTV_SAFE_MAX = 0.7
     DTV_CAUTION_MAX = 0.8
     DTV_DANGER_MAX = 0.9
@@ -52,40 +48,41 @@ class RiskRule:
             if indicators.collateral_burden_rate is not None
             else indicators.lease_to_sale_rate
         )
-        underwater_raw = 47 * (
-            0.6 * cls.dtv_severity(dtv)
-            + 0.2 * severity.volatility
-            + 0.2 * severity.sale_price_decline
+        price_burden = round(
+            cls.LIMITS["price_burden"] * cls.dtv_severity(dtv)
         )
-        rollover_raw = 35 * (
-            0.7 * cls.gap_severity(indicators.lease_price_gap_rate)
-            + 0.3 * severity.lease_price_decline
+        lease_market_deviation = round(
+            cls.LIMITS["lease_market_deviation"]
+            * cls.gap_severity(indicators.lease_price_gap_rate)
         )
-        raw_scores = {
-            "underwater": underwater_raw,
-            "rollover": rollover_raw,
-            "property": 10 * severity.property,
-            "market": 8 * severity.market,
-        }
-        scores = {name: round(value) for name, value in raw_scores.items()}
-        total = min(sum(scores.values()), 100)
-        grade = cls.grade(total)
-        protected = any(
-            raw_scores[name] / limit > 0.7
-            for name, limit in cls.LIMITS.items()
+        market_trend = round(
+            cls.LIMITS["market_trend"]
+            * (severity.sale_price_decline + severity.lease_price_decline)
+            / 2
         )
-        if protected and grade == RiskGrade.LOW:
-            grade = RiskGrade.MEDIUM
-        elif protected and grade == RiskGrade.MEDIUM:
-            grade = RiskGrade.HIGH
+        base_total = min(
+            price_burden + lease_market_deviation + market_trend,
+            100,
+        )
+        policy_floor, floor_reasons = cls.policy_floor(
+            dtv,
+            indicators.lease_price_gap_rate,
+        )
+        total = max(base_total, policy_floor or 0)
 
         return RiskScoreResult(
-            **scores,
+            price_burden=price_burden,
+            lease_market_deviation=lease_market_deviation,
+            market_trend=market_trend,
+            policy_adjustment=total - base_total,
+            base_total=base_total,
             total=total,
-            grade=grade,
-            single_risk_protected=protected,
+            grade=cls.grade(total),
+            policy_floor=policy_floor,
+            floor_reasons=floor_reasons,
             provisional_collateral_basis=(
-                indicators.collateral_burden_rate is None
+                indicators.collateral_expected
+                and indicators.collateral_burden_rate is None
             ),
         )
 
@@ -103,7 +100,6 @@ class RiskRule:
 
     @classmethod
     def dtv_verdict(cls, value: float) -> str:
-        """담보부담률을 안전/주의/위험 세 단계로 판정한다."""
         if value < cls.DTV_SAFE_MAX:
             return "SAFE"
         if value < cls.DTV_CAUTION_MAX:
@@ -121,12 +117,33 @@ class RiskRule:
         return 1.0
 
     @staticmethod
+    def policy_floor(
+        burden_rate: float,
+        lease_gap_rate: float,
+    ) -> tuple[int | None, tuple[str, ...]]:
+        floor = None
+        reasons = []
+        if burden_rate > 1.0:
+            floor = 100
+            reasons.append("RECOVERY_SHORTFALL")
+        elif burden_rate >= 1.0:
+            floor = 80
+            reasons.append("NO_RECOVERY_BUFFER")
+        if lease_gap_rate >= 0.25:
+            floor = max(floor or 0, 80)
+            reasons.append("EXTREME_LEASE_DEVIATION")
+        if burden_rate >= 0.8 and lease_gap_rate >= 0.05:
+            floor = max(floor or 0, 56)
+            reasons.append("COMBINED_PRICE_RISK")
+        return floor, tuple(reasons)
+
+    @staticmethod
     def grade(score: int) -> RiskGrade:
         if score <= 25:
             return RiskGrade.LOW
-        if score <= 50:
+        if score <= 55:
             return RiskGrade.MEDIUM
-        if score <= 75:
+        if score <= 79:
             return RiskGrade.HIGH
         return RiskGrade.CRITICAL
 

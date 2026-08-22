@@ -33,6 +33,16 @@ class AddressService:
     ) -> None:
         self.client = client
 
+    def suggest(
+        self,
+        keyword: str,
+        limit: int = 10,
+    ) -> tuple[dict, ...]:
+        return self.client.search(
+            keyword,
+            count_per_page=limit,
+        ).items
+
     def resolve(
         self,
         keyword: str,

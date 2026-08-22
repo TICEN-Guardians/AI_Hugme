@@ -1,5 +1,6 @@
 from app.diagnosis.risk_rule import RiskRule
 from app.diagnosis.schemas import (
+    DiagnosisMode,
     DiagnosisRequest,
     PriceScenarioPoint,
     RegistryRiskPayload,
@@ -18,8 +19,8 @@ from app.diagnosis.schemas import (
 GRADE_LABELS = {
     RiskGrade.LOW: "낮음",
     RiskGrade.MEDIUM: "보통",
-    RiskGrade.HIGH: "높음",
-    RiskGrade.CRITICAL: "매우 높음",
+    RiskGrade.HIGH: "주의",
+    RiskGrade.CRITICAL: "위험",
 }
 
 RELIABILITY_LABELS = {
@@ -71,6 +72,13 @@ NOTICE_TEXT = {
         "등기부에서 신탁등기가 확인되어 수탁자와 처분 권한 확인이 필요합니다.",
         "HIGH",
     ),
+}
+
+PRICE_FLOOR_LABELS = {
+    "RECOVERY_SHORTFALL": "담보부담액이 예상 매매가를 초과함",
+    "NO_RECOVERY_BUFFER": "담보부담액이 예상 매매가와 같아 회수 여유가 없음",
+    "EXTREME_LEASE_DEVIATION": "보증금이 예상 전세가보다 25% 이상 높음",
+    "COMBINED_PRICE_RISK": "담보부담률 80% 이상과 전세시세 이탈 5% 이상이 함께 확인됨",
 }
 
 MISSING_TEXT = {
@@ -296,7 +304,8 @@ def lease_gap_finding(deposit: int, lease: int, gap_rate: float) -> ReportFindin
     elif diff < 0:
         description = (
             f"계약 보증금 {money(deposit)}이 AI 예상 전세가 {money(lease)}보다 "
-            f"{money(-diff)}({rate_text(abs(gap_rate))}) 낮습니다."
+            f"{money(-diff)}({rate_text(abs(gap_rate))}) 낮습니다. "
+            "보증금이 전세시세보다 낮아 역전세로 보증금을 못 돌려받을 위험은 낮은 편입니다."
         )
     else:
         description = f"계약 보증금이 AI 예상 전세가 {money(lease)}와 같은 수준입니다."
@@ -346,7 +355,11 @@ def recovery_finding(deposit: int, indicators) -> ReportFinding | None:
 
     drop_20 = (indicators.price_drop_scenarios or {}).get("drop_20")
     if drop_20 is not None:
-        description += f" 매매가가 20% 하락하면 담보부담률은 {rate_text(drop_20)}가 됩니다."
+        description += (
+            f" 매매가가 20% 하락해도 담보부담률은 {rate_text(drop_20)}로 안전 구간입니다."
+            if RiskRule.dtv_verdict(drop_20) == "SAFE"
+            else f" 매매가가 20% 하락하면 담보부담률은 {rate_text(drop_20)}가 됩니다."
+        )
 
     return ReportFinding(title="보증금 회수 여력", description=description)
 
@@ -389,32 +402,61 @@ def reliability_finding(
     )
 
 
-def score_finding(result) -> ReportFinding:
+def floor_reason_label(code: str) -> str:
+    if code in PRICE_FLOOR_LABELS:
+        return PRICE_FLOOR_LABELS[code]
+    return NOTICE_TEXT.get(code, (code,))[0]
+
+
+def score_finding(request: DiagnosisRequest, result) -> ReportFinding:
     score = result.risk_score
+    final_score = result.forced_warning.score
+    price_label = (
+        "담보 회수부담"
+        if request.mode == DiagnosisMode.DETAILED
+        else "계약가격 부담"
+    )
+    adjustments = []
+    if score.policy_adjustment:
+        adjustments.append(f"가격 위험 하한 조정 +{score.policy_adjustment}점")
+    rights_adjustment = final_score - score.total
+    if rights_adjustment:
+        adjustments.append(f"등기 권리 하한 조정 +{rights_adjustment}점")
+    adjustment_text = (
+        f" {', '.join(adjustments)}을 반영해 최종 {final_score}점입니다."
+        if adjustments
+        else f" 최종 위험점수도 {final_score}점입니다."
+    )
+
     return ReportFinding(
         title="위험점수 구성",
         description=(
-            f"규칙 기반 위험점수는 {score.total}점입니다. "
-            f"깡통전세 {score.underwater}점, 역전세 {score.rollover}점, "
-            f"주택 특성 {score.property}점, 시장 상황 {score.market}점을 합산했습니다."
+            f"기본 가중점수는 {score.base_total}점입니다. "
+            f"{price_label} {score.price_burden}점, "
+            f"주변 전세수준 이탈 {score.lease_market_deviation}점, "
+            f"시장 추세 {score.market_trend}점을 합산했습니다."
+            f"{adjustment_text}"
         ),
     )
 
 
-def grade_override_finding(result) -> ReportFinding | None:
-    if not result.forced_warning.grade_overridden:
+def score_floor_finding(result) -> ReportFinding | None:
+    if result.forced_warning.score == result.risk_score.base_total:
         return None
 
-    causes = ", ".join(
-        NOTICE_TEXT.get(code, (code,))[0]
-        for code in result.forced_warning.warnings
+    reason_codes = dict.fromkeys(
+        (
+            *result.risk_score.floor_reasons,
+            *result.forced_warning.floor_reasons,
+        )
     )
+    causes = ", ".join(floor_reason_label(code) for code in reason_codes)
     return ReportFinding(
-        title="등급 상향 사유",
+        title="최종점수 조정 근거",
         description=(
-            f"위험점수는 {result.risk_score.total}점이지만 "
-            f"{causes} 때문에 최종 등급이 "
-            f"{GRADE_LABELS[result.forced_warning.grade]}으로 상향됐습니다."
+            f"기본 가중점수 {result.risk_score.base_total}점에 "
+            f"{causes} 최종 판정 규칙을 적용해 "
+            f"{result.forced_warning.score}점으로 조정했습니다."
         ),
     )
 
@@ -455,12 +497,21 @@ def summary_collateral_text(request: DiagnosisRequest, result) -> str | None:
     if indicators.recoverable_amount is None:
         return None
 
+    # 담보부담률이 4%대인데 "여유가 빠르게 줄어든다"고 하면 사실과 어긋난다.
+    # 20% 하락 시나리오가 여전히 안전 구간이면 그렇다고 말한다.
     drop_20 = (indicators.price_drop_scenarios or {}).get("drop_20")
-    tail = (
-        f" 매매가가 20% 하락하면 담보부담률이 {rate_text(drop_20)}까지 올라 여유가 빠르게 줄어듭니다."
-        if drop_20 is not None
-        else ""
-    )
+    if drop_20 is None:
+        tail = ""
+    elif RiskRule.dtv_verdict(drop_20) == "SAFE":
+        tail = (
+            f" 매매가가 20% 하락해도 담보부담률은 {rate_text(drop_20)}로 "
+            "안전 구간에 머물러 담보 여유는 넉넉합니다."
+        )
+    else:
+        tail = (
+            f" 매매가가 20% 하락하면 담보부담률이 {rate_text(drop_20)}까지 올라 "
+            "여유가 빠르게 줄어듭니다."
+        )
 
     shortfall = indicators.deposit_shortfall or 0
     if shortfall > 0:
@@ -495,21 +546,28 @@ def summary_text(
     result,
     reliability: ValuationReliability,
 ) -> str:
-    """점수와 등급이 어긋나 보이지 않도록 상향 사유를 먼저 밝힌다."""
     grade_label = GRADE_LABELS[result.forced_warning.grade]
-    score = result.risk_score.total
+    final_score = result.forced_warning.score
 
-    if result.forced_warning.grade_overridden:
-        causes = ", ".join(
-            NOTICE_TEXT.get(code, (code,))[0]
-            for code in result.forced_warning.warnings
+    if final_score != result.risk_score.base_total:
+        reason_codes = dict.fromkeys(
+            (
+                *result.risk_score.floor_reasons,
+                *result.forced_warning.floor_reasons,
+            )
         )
+        causes = ", ".join(floor_reason_label(code) for code in reason_codes)
         lead = (
-            f"규칙 위험점수는 {score}점({GRADE_LABELS[RiskRule.grade(score)]} 구간)이지만 "
-            f"{causes} 항목이 확인돼 최종 등급을 {grade_label}으로 올렸습니다."
+            f"기본 가중점수 {result.risk_score.base_total}점에 "
+            f"{causes} 최종 판정 규칙을 반영해 "
+            f"위험점수를 {final_score}점으로 조정했습니다. "
+            f"최종 전세 위험등급은 {grade_label}입니다."
         )
     else:
-        lead = f"규칙 위험점수 {score}점으로 최종 전세 위험등급은 {grade_label}입니다."
+        lead = (
+            f"최종 위험점수 {final_score}점으로 "
+            f"전세 위험등급은 {grade_label}입니다."
+        )
 
     parts = [
         lead,
@@ -550,13 +608,80 @@ def key_findings(
             collateral_finding(deposit, indicators),
             recovery_finding(deposit, indicators),
             reliability_finding(reliability, result),
-            score_finding(result),
-            grade_override_finding(result),
+            score_finding(request, result),
+            score_floor_finding(result),
         )
         if item is not None
     )
 
     return findings
+
+
+def risk_score_metrics(
+    request: DiagnosisRequest,
+    result,
+) -> list[ReportMetric]:
+    score = result.risk_score
+    final_score = result.forced_warning.score
+    price_label = (
+        "담보 회수부담"
+        if request.mode == DiagnosisMode.DETAILED
+        else "계약가격 부담"
+    )
+    metrics = [
+        ReportMetric(key="total", label="최종점수", value=final_score, unit="점"),
+    ]
+    if final_score != score.base_total:
+        metrics.append(
+            ReportMetric(
+                key="base",
+                label="기본 가중점수",
+                value=score.base_total,
+                unit="점",
+            )
+        )
+    metrics.extend(
+        [
+            ReportMetric(
+                key="priceBurden",
+                label=price_label,
+                value=score.price_burden,
+                unit="점",
+            ),
+            ReportMetric(
+                key="leaseMarketDeviation",
+                label="주변 전세수준 이탈",
+                value=score.lease_market_deviation,
+                unit="점",
+            ),
+            ReportMetric(
+                key="marketTrend",
+                label="시장 추세",
+                value=score.market_trend,
+                unit="점",
+            ),
+        ]
+    )
+    if score.policy_adjustment:
+        metrics.append(
+            ReportMetric(
+                key="policyAdjustment",
+                label="가격 위험 하한 조정",
+                value=score.policy_adjustment,
+                unit="점",
+            )
+        )
+    rights_adjustment = final_score - score.total
+    if rights_adjustment:
+        metrics.append(
+            ReportMetric(
+                key="rightsAdjustment",
+                label="등기 권리 하한 조정",
+                value=rights_adjustment,
+                unit="점",
+            )
+        )
+    return metrics
 
 
 def build_report_detail(request: DiagnosisRequest, result, reliability) -> ReportDetail:
@@ -576,42 +701,46 @@ def build_report_detail(request: DiagnosisRequest, result, reliability) -> Repor
             metrics=[
                 ReportMetric(key="salePrice", label="예상 매매가", value=result.estimated_sale_price, unit="원"),
                 ReportMetric(key="leasePrice", label="예상 전세가", value=result.estimated_lease_price, unit="원"),
+                ReportMetric(key="deposit", label="계약 보증금", value=request.deposit, unit="원"),
                 ReportMetric(key="reliability", label="시세 신뢰도", value=reliability.value),
             ],
-        ),
-        ReportSection(
-            key="collateral",
-            title="보증금과 담보",
-            description="보증금과 등기부상 활성 근저당을 매매가와 비교한 결과입니다.",
-            metrics=[
-                ReportMetric(key="deposit", label="계약 보증금", value=request.deposit, unit="원"),
-                ReportMetric(key="collateralBurden", label="담보부담액", value=indicators.collateral_burden_amount, unit="원"),
-                ReportMetric(key="collateralRate", label="담보부담률", value=percent(indicators.collateral_burden_rate), unit="%"),
-                ReportMetric(key="shortfall", label="보증금 부족액", value=indicators.deposit_shortfall, unit="원"),
-            ],
-        ),
+        )
+    ]
+    if request.mode == DiagnosisMode.DETAILED:
+        sections.append(
+            ReportSection(
+                key="collateral",
+                title="보증금과 담보",
+                description="보증금과 등기부상 활성 근저당을 매매가와 비교한 결과입니다.",
+                metrics=[
+                    ReportMetric(key="deposit", label="계약 보증금", value=request.deposit, unit="원"),
+                    ReportMetric(key="collateralBurden", label="담보부담액", value=indicators.collateral_burden_amount, unit="원"),
+                    ReportMetric(key="collateralRate", label="담보부담률", value=percent(indicators.collateral_burden_rate), unit="%"),
+                    ReportMetric(key="shortfall", label="보증금 부족액", value=indicators.deposit_shortfall, unit="원"),
+                ],
+            )
+        )
+    sections.append(
         ReportSection(
             key="riskScore",
             title="위험점수",
-            description="확정된 규칙에 따라 계산한 위험요인별 점수입니다.",
-            metrics=[
-                ReportMetric(key="total", label="총점", value=result.risk_score.total, unit="점"),
-                ReportMetric(key="underwater", label="깡통전세 위험", value=result.risk_score.underwater, unit="점"),
-                ReportMetric(key="rollover", label="역전세 위험", value=result.risk_score.rollover, unit="점"),
-                ReportMetric(key="property", label="주택 특성", value=result.risk_score.property, unit="점"),
-                ReportMetric(key="market", label="시장 상황", value=result.risk_score.market, unit="점"),
-            ],
-        ),
-    ]
+            description="기본 가중점수와 최종 판정 조정 내역입니다.",
+            metrics=risk_score_metrics(request, result),
+        )
+    )
 
     scenarios = [
         price_scenario(key, burden_rate, result.estimated_sale_price)
         for key, burden_rate in (indicators.price_drop_scenarios or {}).items()
     ]
-    actions = recommended_actions(result)
+    actions = recommended_actions(request, result)
 
     return ReportDetail(
-        title="전세 위험도 진단 결과",
+        title=(
+            "간편 전세 위험도 진단 결과"
+            if request.mode == DiagnosisMode.QUICK
+            else "정밀 전세 위험도 진단 결과"
+        ),
         gradeLabel=GRADE_LABELS[final_grade],
         sections=sections,
         notices=notices,
@@ -630,27 +759,42 @@ def percent(value: float | None) -> float | None:
     return round(value * 100, 2) if value is not None else None
 
 
-def recommended_actions(result) -> list[ReportAction]:
-    actions = [
-        ReportAction(
-            label="등기부등본 재발급",
-            description="계약 직전에 등기부등본을 다시 발급해 권리 변동을 확인하세요.",
-        )
-    ]
-    if result.forced_warning.warnings:
+def recommended_actions(
+    request: DiagnosisRequest,
+    result,
+) -> list[ReportAction]:
+    actions = []
+    if request.mode == DiagnosisMode.QUICK:
         actions.append(
             ReportAction(
-                label="계약 진행 보류",
-                description="확인된 등기 위험이 해소되기 전에는 계약 진행을 보류하세요.",
+                label="정밀진단으로 추가 확인",
+                description=(
+                    "등기부등본을 첨부하는 정밀진단으로 근저당, 압류, "
+                    "소유자 일치 여부를 추가 확인하세요."
+                ),
             )
         )
-    if result.missing_checks:
+    else:
         actions.append(
             ReportAction(
-                label="미확인 항목 확인",
-                description="미확인 항목을 확인한 뒤 최종 계약 여부를 결정하세요.",
+                label="등기부등본 재발급",
+                description="계약 직전에 등기부등본을 다시 발급해 권리 변동을 확인하세요.",
             )
         )
+        if result.forced_warning.warnings:
+            actions.append(
+                ReportAction(
+                    label="계약 진행 보류",
+                    description="확인된 등기 위험이 해소되기 전에는 계약 진행을 보류하세요.",
+                )
+            )
+        if result.missing_checks:
+            actions.append(
+                ReportAction(
+                    label="미확인 항목 확인",
+                    description="미확인 항목을 확인한 뒤 최종 계약 여부를 결정하세요.",
+                )
+            )
     actions.append(
         ReportAction(
             label="보증보험 가입 확인",

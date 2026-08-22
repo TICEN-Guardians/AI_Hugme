@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from app.ocr.db import get_connection
-from app.ocr.parser import calc_age_from_jumin
+from app.ocr.registry_text_rules import calc_age_from_jumin
 
 
 @dataclass

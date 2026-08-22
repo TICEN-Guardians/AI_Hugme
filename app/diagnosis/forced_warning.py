@@ -1,14 +1,7 @@
 from dataclasses import dataclass
 
+from app.diagnosis.risk_rule import RiskRule
 from app.diagnosis.schemas import RiskGrade
-
-
-GRADE_ORDER = {
-    RiskGrade.LOW: 0,
-    RiskGrade.MEDIUM: 1,
-    RiskGrade.HIGH: 2,
-    RiskGrade.CRITICAL: 3,
-}
 
 
 @dataclass(frozen=True)
@@ -25,23 +18,38 @@ class ForcedWarningInput:
 
 @dataclass(frozen=True)
 class ForcedWarningResult:
+    score: int
     grade: RiskGrade
     warnings: tuple[str, ...]
     missing_checks: tuple[str, ...]
-    grade_overridden: bool
+    score_floor: int | None
+    score_floor_applied: bool
+    floor_reasons: tuple[str, ...]
 
 
 class ForcedWarningRule:
+    SCORE_FLOOR = 80
+
     @classmethod
     def apply(
         cls,
-        grade: RiskGrade,
+        score: int,
         values: ForcedWarningInput,
+        registry_required: bool,
     ) -> ForcedWarningResult:
+        if not registry_required:
+            return ForcedWarningResult(
+                score=score,
+                grade=RiskRule.grade(score),
+                warnings=(),
+                missing_checks=(),
+                score_floor=None,
+                score_floor_applied=False,
+                floor_reasons=(),
+            )
+
         warnings: set[str] = set()
         missing: set[str] = set()
-        minimum_grade = grade
-
         rights = {
             "seizure": "SEIZURE",
             "provisional_seizure": "PROVISIONAL_SEIZURE",
@@ -57,32 +65,26 @@ class ForcedWarningRule:
             elif value is None:
                 missing.add(code)
 
-        if values.auction_commenced is True:
-            minimum_grade = cls._higher(minimum_grade, RiskGrade.CRITICAL)
-        if values.senior_lease_right is True:
-            minimum_grade = cls._higher(minimum_grade, RiskGrade.HIGH)
-
         if values.owner_matches_contract_party is False:
             warnings.add("OWNER_MISMATCH")
-            minimum_grade = cls._higher(minimum_grade, RiskGrade.CRITICAL)
         elif values.owner_matches_contract_party is None:
             missing.add("OWNER_MATCH")
 
         if values.bad_landlord_matched is True:
             warnings.add("BAD_LANDLORD_MATCH")
-            minimum_grade = cls._higher(minimum_grade, RiskGrade.HIGH)
         elif values.bad_landlord_matched is None:
             missing.add("BAD_LANDLORD_WATCHLIST")
 
+        floor_reasons = tuple(sorted(warnings))
+        score_floor = cls.SCORE_FLOOR if floor_reasons else None
+        final_score = max(score, score_floor or 0)
+
         return ForcedWarningResult(
-            grade=minimum_grade,
+            score=final_score,
+            grade=RiskRule.grade(final_score),
             warnings=tuple(sorted(warnings)),
             missing_checks=tuple(sorted(missing)),
-            grade_overridden=minimum_grade != grade,
+            score_floor=score_floor,
+            score_floor_applied=final_score != score,
+            floor_reasons=floor_reasons,
         )
-
-    @staticmethod
-    def _higher(current: RiskGrade, required: RiskGrade) -> RiskGrade:
-        if GRADE_ORDER[required] > GRADE_ORDER[current]:
-            return required
-        return current

@@ -27,9 +27,10 @@ class RightEntry(BaseModel):
     section: str = Field(..., description="갑구 | 을구")
     rank_no: str = Field(..., description="순위번호 (부기등기는 '1-1' 형태)")
     kind: str = Field(..., description="rightType: MORTGAGE/SEIZURE/PROVISIONAL_SEIZURE/"
-                                       "PROVISIONAL_DISPOSITION/AUCTION/TRUST/JEONSE_RIGHT/"
+                                       "PROVISIONAL_DISPOSITION/PROVISIONAL_REGISTRATION/"
+                                       "AUCTION/TRUST/JEONSE_RIGHT/"
                                        "LEASEHOLD_REGISTRATION/OWNERSHIP/MORTGAGE_AMEND/"
-                                       "CANCELLATION/OTHER")
+                                       "MORTGAGE_TRANSFER/CANCELLATION/OTHER")
     status: str = Field(..., description="ACTIVE | CANCELLED (말소 항목의 순위번호 참조로 판정)")
     receipt_no: str | None = Field(None, description="접수번호")
     registered_at: str | None = Field(None, description="접수일 (YYYY-MM-DD)")
@@ -100,8 +101,10 @@ class OcrRegisterResponse(BaseModel):
     )
     parse_confidence: str = Field(
     ...,
-    description="HIGH | MEDIUM | LOW | UNKNOWN. pdf_text는 OCR을 안 거쳐 인식오류 개념이 "
-                "없으므로 HIGH 고정. pdf_ocr/image_ocr은 RapidOCR 인식 점수 기반.",
+    description=(
+        "HIGH | MEDIUM | LOW | UNKNOWN. PDF 원문에 존재하는 근거와 핵심 필드·"
+        "섹션·금액 검증 결과를 기준으로 계산."
+    ),
     examples=["HIGH"],
     )
     parsed_at: str | None = Field(None, description="파싱 수행 시각")
@@ -135,7 +138,7 @@ class OcrRegisterResponse(BaseModel):
     source_type: str = Field(
         ...,
         description="텍스트를 얻은 경로",
-        examples=["pdf_text", "pdf_ocr", "image_ocr", "image_ocr_multi"],
+        examples=["pdf_llm"],
     )
 
 class OwnerMatchResult(BaseModel):

@@ -8,7 +8,6 @@ from app.diagnosis.external.rone.service import RoneResult
 from app.diagnosis.feature_input import FeatureInput
 from app.diagnosis.market_feature_service import MarketFeatureResult
 from app.diagnosis.risk_severity_factory import RiskSeverityFactory
-from app.diagnosis.schemas import HousingType
 
 
 def market(rone_change: float) -> MarketFeatureResult:
@@ -55,22 +54,26 @@ def market(rone_change: float) -> MarketFeatureResult:
 
 def main() -> None:
     sale = market(-1.0)
-    lease = replace(sale, rone=replace(sale.rone, values={"RONE_가격지수_전월비": -0.5}))
-    result = RiskSeverityFactory.create(HousingType.APARTMENT, sale, lease)
+    lease = replace(
+        sale,
+        rone=replace(
+            sale.rone,
+            values={"RONE_가격지수_전월비": -0.5},
+        ),
+    )
+    result = RiskSeverityFactory.create(
+        sale_market=sale,
+        lease_market=lease,
+    )
 
     assert result.sale_price_change == -1.0
     assert result.lease_price_change == -0.5
-    assert result.building_age == 35
-    assert result.severity.volatility == 0.5
     assert result.severity.sale_price_decline == 0.5
     assert result.severity.lease_price_decline == 0.25
-    assert 0 <= result.severity.property <= 1
-    assert 0 <= result.severity.market <= 1
 
-    print("위험 심각도 Factory 검증 완료")
+    print("시장 추세 심각도 Factory 검증 완료")
     print(f"- 매매 변동: {result.sale_price_change}")
     print(f"- 전세 변동: {result.lease_price_change}")
-    print(f"- 건물 나이: {result.building_age}")
     print(f"- 심각도: {result.severity}")
 
 

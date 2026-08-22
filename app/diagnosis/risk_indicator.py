@@ -12,6 +12,7 @@ class RiskIndicatorResult:
     remaining_collateral_capacity: int | None
     price_drop_scenarios: dict[str, float] | None
     missing_checks: tuple[str, ...]
+    collateral_expected: bool
 
 
 class RiskIndicatorCalculator:
@@ -21,6 +22,7 @@ class RiskIndicatorCalculator:
         estimated_lease_price: int,
         deposit: int,
         active_max_claim_amount: int | None,
+        collateral_expected: bool,
     ) -> RiskIndicatorResult:
         if min(estimated_sale_price, estimated_lease_price, deposit) <= 0:
             raise ValueError("시세와 보증금은 양수 필요")
@@ -42,7 +44,12 @@ class RiskIndicatorCalculator:
                 deposit_shortfall=None,
                 remaining_collateral_capacity=None,
                 price_drop_scenarios=None,
-                missing_checks=("ACTIVE_MAX_CLAIM_AMOUNT",),
+                missing_checks=(
+                    ("ACTIVE_MAX_CLAIM_AMOUNT",)
+                    if collateral_expected
+                    else ()
+                ),
+                collateral_expected=collateral_expected,
             )
 
         burden = active_max_claim_amount + deposit
@@ -62,4 +69,5 @@ class RiskIndicatorCalculator:
             remaining_collateral_capacity=estimated_sale_price - burden,
             price_drop_scenarios=scenarios,
             missing_checks=(),
+            collateral_expected=collateral_expected,
         )

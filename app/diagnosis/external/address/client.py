@@ -4,17 +4,14 @@ from app.diagnosis.external.address.schemas import (
     AddressSearchResult,
 )
 
-
 class AddressApiError(RuntimeError):
     pass
-
 
 class AddressClient:
     URL = (
         "https://business.juso.go.kr/"
         "addrlink/addrLinkApi.do"
     )
-
     def __init__(
         self,
         confirmation_key: str,
@@ -33,16 +30,19 @@ class AddressClient:
     def search(
         self,
         keyword: str,
+        count_per_page: int = 100,
     ) -> AddressSearchResult:
         keyword = keyword.strip()
 
         if len(keyword) < 2:
             raise ValueError("주소 검색어 길이 부족")
+        if not 1 <= count_per_page <= 100:
+            raise ValueError("주소 검색 결과 수 범위 오류")
 
         params = {
             "confmKey": self.confirmation_key,
             "currentPage": "1",
-            "countPerPage": "100",
+            "countPerPage": str(count_per_page),
             "keyword": keyword,
             "resultType": "json",
             "hstryYn": "Y",
