@@ -410,19 +410,17 @@ class IndicatorSummary(ApiModel):
 
 
 class RiskBreakdown(ApiModel):
-    underwater: int = Field(description="담보부족 위험(깡통전세)")
-    rollover: int = Field(description="역전세 위험")
-    property: int = Field(description="주택 특성 위험")
-    market: int = Field(description="시장 상황 위험")
+    price_burden: int = Field(alias="priceBurden")
+    lease_market_deviation: int = Field(alias="leaseMarketDeviation")
+    market_trend: int = Field(alias="marketTrend")
+    policy_adjustment: int = Field(alias="policyAdjustment")
+    rights_adjustment: int = Field(alias="rightsAdjustment")
 
 
 class RiskWeights(ApiModel):
-    """위험요인별 만점. 클라이언트가 만점을 따로 갖지 않도록 함께 내려준다."""
-
-    underwater: int
-    rollover: int
-    property: int
-    market: int
+    price_burden: int = Field(alias="priceBurden")
+    lease_market_deviation: int = Field(alias="leaseMarketDeviation")
+    market_trend: int = Field(alias="marketTrend")
     total: int
 
 
@@ -432,13 +430,15 @@ class RiskSummary(ApiModel):
         le=100,
         description="서비스 위험점수이며 전세사기 확률이 아님",
     )
+    base_score: int = Field(alias="baseScore", ge=0, le=100)
     grade: RiskGrade
     breakdown: RiskBreakdown
     weights: RiskWeights
-    grade_overridden: bool = Field(
+    score_floor: int | None = Field(default=None, alias="scoreFloor")
+    floor_reasons: list[str] = Field(default_factory=list, alias="floorReasons")
+    score_floor_applied: bool = Field(
         default=False,
-        alias="gradeOverridden",
-        description="강제 경고로 점수와 무관하게 등급이 상향됐는지 여부",
+        alias="scoreFloorApplied",
     )
     provisional_collateral_basis: bool = Field(
         default=False,

@@ -217,7 +217,6 @@ class DiagnosisPipeline:
             collateral_expected=request.mode == DiagnosisMode.DETAILED,
         )
         risk_severity = RiskSeverityFactory.create(
-            housing_type=resolved.housing_type,
             sale_market=sale_market,
             lease_market=lease_market,
         )
@@ -226,7 +225,7 @@ class DiagnosisPipeline:
             risk_severity.severity,
         )
         forced_warning = ForcedWarningRule.apply(
-            risk_score.grade,
+            risk_score.total,
             registry_risk.forced_warning_input,
             registry_required=request.mode == DiagnosisMode.DETAILED,
         )

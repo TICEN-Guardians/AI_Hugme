@@ -34,10 +34,10 @@ class QuickDiagnosisTest(unittest.TestCase):
         )
         score = RiskRule.score(
             indicators,
-            RiskSeverityInput(0.0, 0.0, 0.0, 0.0, 0.0),
+            RiskSeverityInput(0.0, 0.0),
         )
         warning = ForcedWarningRule.apply(
-            score.grade,
+            score.total,
             ForcedWarningInput(None, None, None, None, None, None, None, None),
             registry_required=False,
         )
@@ -58,10 +58,10 @@ class QuickDiagnosisTest(unittest.TestCase):
         )
         score = RiskRule.score(
             indicators,
-            RiskSeverityInput(0.0, 0.0, 0.0, 0.0, 0.0),
+            RiskSeverityInput(0.0, 0.0),
         )
         forced = ForcedWarningRule.apply(
-            score.grade,
+            score.total,
             ForcedWarningInput(None, None, None, None, None, None, None, None),
             registry_required=False,
         )

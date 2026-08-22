@@ -277,7 +277,16 @@ def analyze_diagnosis(
 
     indicators = result.risk_indicators
     score = result.risk_score
+    final_score = result.forced_warning.score
     final_grade = result.forced_warning.grade
+    score_floor = max(
+        (
+            value
+            for value in (score.policy_floor, result.forced_warning.score_floor)
+            if value is not None
+        ),
+        default=None,
+    )
     reliability = valuation_reliability(result)
     report_detail = explain_report(
         build_report_detail(request, result, reliability)
@@ -318,22 +327,29 @@ def analyze_diagnosis(
             ),
         ),
         risk=RiskSummary(
-            score=score.total,
+            score=final_score,
+            baseScore=score.base_total,
             grade=final_grade,
             breakdown=RiskBreakdown(
-                underwater=score.underwater,
-                rollover=score.rollover,
-                property=score.property,
-                market=score.market,
+                priceBurden=score.price_burden,
+                leaseMarketDeviation=score.lease_market_deviation,
+                marketTrend=score.market_trend,
+                policyAdjustment=score.policy_adjustment,
+                rightsAdjustment=final_score - score.total,
             ),
             weights=RiskWeights(
-                underwater=RiskRule.LIMITS["underwater"],
-                rollover=RiskRule.LIMITS["rollover"],
-                property=RiskRule.LIMITS["property"],
-                market=RiskRule.LIMITS["market"],
+                priceBurden=RiskRule.LIMITS["price_burden"],
+                leaseMarketDeviation=RiskRule.LIMITS["lease_market_deviation"],
+                marketTrend=RiskRule.LIMITS["market_trend"],
                 total=sum(RiskRule.LIMITS.values()),
             ),
-            gradeOverridden=result.forced_warning.grade_overridden,
+            scoreFloor=score_floor,
+            floorReasons=list(
+                dict.fromkeys(
+                    (*score.floor_reasons, *result.forced_warning.floor_reasons)
+                )
+            ),
+            scoreFloorApplied=final_score != score.base_total,
             provisionalCollateralBasis=score.provisional_collateral_basis,
         ),
         forcedWarnings=list(result.forced_warning.warnings),

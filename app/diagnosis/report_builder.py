@@ -19,8 +19,8 @@ from app.diagnosis.schemas import (
 GRADE_LABELS = {
     RiskGrade.LOW: "낮음",
     RiskGrade.MEDIUM: "보통",
-    RiskGrade.HIGH: "높음",
-    RiskGrade.CRITICAL: "매우 높음",
+    RiskGrade.HIGH: "주의",
+    RiskGrade.CRITICAL: "위험",
 }
 
 RELIABILITY_LABELS = {
@@ -72,6 +72,13 @@ NOTICE_TEXT = {
         "등기부에서 신탁등기가 확인되어 수탁자와 처분 권한 확인이 필요합니다.",
         "HIGH",
     ),
+}
+
+PRICE_FLOOR_LABELS = {
+    "RECOVERY_SHORTFALL": "담보부담액이 예상 매매가를 초과함",
+    "NO_RECOVERY_BUFFER": "담보부담액이 예상 매매가와 같아 회수 여유가 없음",
+    "EXTREME_LEASE_DEVIATION": "보증금이 예상 전세가보다 25% 이상 높음",
+    "COMBINED_PRICE_RISK": "담보부담률 80% 이상과 전세시세 이탈 5% 이상이 함께 확인됨",
 }
 
 MISSING_TEXT = {
@@ -395,32 +402,61 @@ def reliability_finding(
     )
 
 
-def score_finding(result) -> ReportFinding:
+def floor_reason_label(code: str) -> str:
+    if code in PRICE_FLOOR_LABELS:
+        return PRICE_FLOOR_LABELS[code]
+    return NOTICE_TEXT.get(code, (code,))[0]
+
+
+def score_finding(request: DiagnosisRequest, result) -> ReportFinding:
     score = result.risk_score
+    final_score = result.forced_warning.score
+    price_label = (
+        "담보 회수부담"
+        if request.mode == DiagnosisMode.DETAILED
+        else "계약가격 부담"
+    )
+    adjustments = []
+    if score.policy_adjustment:
+        adjustments.append(f"가격 위험 하한 조정 +{score.policy_adjustment}점")
+    rights_adjustment = final_score - score.total
+    if rights_adjustment:
+        adjustments.append(f"등기 권리 하한 조정 +{rights_adjustment}점")
+    adjustment_text = (
+        f" {', '.join(adjustments)}을 반영해 최종 {final_score}점입니다."
+        if adjustments
+        else f" 최종 위험점수도 {final_score}점입니다."
+    )
+
     return ReportFinding(
         title="위험점수 구성",
         description=(
-            f"규칙 기반 위험점수는 {score.total}점입니다. "
-            f"깡통전세 {score.underwater}점, 역전세 {score.rollover}점, "
-            f"주택 특성 {score.property}점, 시장 상황 {score.market}점을 합산했습니다."
+            f"기본 가중점수는 {score.base_total}점입니다. "
+            f"{price_label} {score.price_burden}점, "
+            f"주변 전세수준 이탈 {score.lease_market_deviation}점, "
+            f"시장 추세 {score.market_trend}점을 합산했습니다."
+            f"{adjustment_text}"
         ),
     )
 
 
-def grade_override_finding(result) -> ReportFinding | None:
-    if not result.forced_warning.grade_overridden:
+def score_floor_finding(result) -> ReportFinding | None:
+    if result.forced_warning.score == result.risk_score.base_total:
         return None
 
-    causes = ", ".join(
-        NOTICE_TEXT.get(code, (code,))[0]
-        for code in result.forced_warning.warnings
+    reason_codes = dict.fromkeys(
+        (
+            *result.risk_score.floor_reasons,
+            *result.forced_warning.floor_reasons,
+        )
     )
+    causes = ", ".join(floor_reason_label(code) for code in reason_codes)
     return ReportFinding(
-        title="등급 상향 사유",
+        title="최종점수 조정 근거",
         description=(
-            f"위험점수는 {result.risk_score.total}점이지만 "
-            f"{causes} 때문에 최종 등급이 "
-            f"{GRADE_LABELS[result.forced_warning.grade]}으로 상향됐습니다."
+            f"기본 가중점수 {result.risk_score.base_total}점에 "
+            f"{causes} 최종 판정 규칙을 적용해 "
+            f"{result.forced_warning.score}점으로 조정했습니다."
         ),
     )
 
@@ -510,21 +546,28 @@ def summary_text(
     result,
     reliability: ValuationReliability,
 ) -> str:
-    """점수와 등급이 어긋나 보이지 않도록 상향 사유를 먼저 밝힌다."""
     grade_label = GRADE_LABELS[result.forced_warning.grade]
-    score = result.risk_score.total
+    final_score = result.forced_warning.score
 
-    if result.forced_warning.grade_overridden:
-        causes = ", ".join(
-            NOTICE_TEXT.get(code, (code,))[0]
-            for code in result.forced_warning.warnings
+    if final_score != result.risk_score.base_total:
+        reason_codes = dict.fromkeys(
+            (
+                *result.risk_score.floor_reasons,
+                *result.forced_warning.floor_reasons,
+            )
         )
+        causes = ", ".join(floor_reason_label(code) for code in reason_codes)
         lead = (
-            f"규칙 위험점수는 {score}점({GRADE_LABELS[RiskRule.grade(score)]} 구간)이지만 "
-            f"{causes} 항목이 확인돼 최종 등급을 {grade_label}으로 올렸습니다."
+            f"기본 가중점수 {result.risk_score.base_total}점에 "
+            f"{causes} 최종 판정 규칙을 반영해 "
+            f"위험점수를 {final_score}점으로 조정했습니다. "
+            f"최종 전세 위험등급은 {grade_label}입니다."
         )
     else:
-        lead = f"규칙 위험점수 {score}점으로 최종 전세 위험등급은 {grade_label}입니다."
+        lead = (
+            f"최종 위험점수 {final_score}점으로 "
+            f"전세 위험등급은 {grade_label}입니다."
+        )
 
     parts = [
         lead,
@@ -565,13 +608,80 @@ def key_findings(
             collateral_finding(deposit, indicators),
             recovery_finding(deposit, indicators),
             reliability_finding(reliability, result),
-            score_finding(result),
-            grade_override_finding(result),
+            score_finding(request, result),
+            score_floor_finding(result),
         )
         if item is not None
     )
 
     return findings
+
+
+def risk_score_metrics(
+    request: DiagnosisRequest,
+    result,
+) -> list[ReportMetric]:
+    score = result.risk_score
+    final_score = result.forced_warning.score
+    price_label = (
+        "담보 회수부담"
+        if request.mode == DiagnosisMode.DETAILED
+        else "계약가격 부담"
+    )
+    metrics = [
+        ReportMetric(key="total", label="최종점수", value=final_score, unit="점"),
+    ]
+    if final_score != score.base_total:
+        metrics.append(
+            ReportMetric(
+                key="base",
+                label="기본 가중점수",
+                value=score.base_total,
+                unit="점",
+            )
+        )
+    metrics.extend(
+        [
+            ReportMetric(
+                key="priceBurden",
+                label=price_label,
+                value=score.price_burden,
+                unit="점",
+            ),
+            ReportMetric(
+                key="leaseMarketDeviation",
+                label="주변 전세수준 이탈",
+                value=score.lease_market_deviation,
+                unit="점",
+            ),
+            ReportMetric(
+                key="marketTrend",
+                label="시장 추세",
+                value=score.market_trend,
+                unit="점",
+            ),
+        ]
+    )
+    if score.policy_adjustment:
+        metrics.append(
+            ReportMetric(
+                key="policyAdjustment",
+                label="가격 위험 하한 조정",
+                value=score.policy_adjustment,
+                unit="점",
+            )
+        )
+    rights_adjustment = final_score - score.total
+    if rights_adjustment:
+        metrics.append(
+            ReportMetric(
+                key="rightsAdjustment",
+                label="등기 권리 하한 조정",
+                value=rights_adjustment,
+                unit="점",
+            )
+        )
+    return metrics
 
 
 def build_report_detail(request: DiagnosisRequest, result, reliability) -> ReportDetail:
@@ -614,14 +724,8 @@ def build_report_detail(request: DiagnosisRequest, result, reliability) -> Repor
         ReportSection(
             key="riskScore",
             title="위험점수",
-            description="확정된 규칙에 따라 계산한 위험요인별 점수입니다.",
-            metrics=[
-                ReportMetric(key="total", label="총점", value=result.risk_score.total, unit="점"),
-                ReportMetric(key="underwater", label="깡통전세 위험", value=result.risk_score.underwater, unit="점"),
-                ReportMetric(key="rollover", label="역전세 위험", value=result.risk_score.rollover, unit="점"),
-                ReportMetric(key="property", label="주택 특성", value=result.risk_score.property, unit="점"),
-                ReportMetric(key="market", label="시장 상황", value=result.risk_score.market, unit="점"),
-            ],
+            description="기본 가중점수와 최종 판정 조정 내역입니다.",
+            metrics=risk_score_metrics(request, result),
         )
     )
 
