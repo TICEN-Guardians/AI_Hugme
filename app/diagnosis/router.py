@@ -12,6 +12,10 @@ from app.diagnosis.diagnosis_dependencies import get_diagnosis_pipeline
 from app.diagnosis.deposit_recommendation import (
     DepositRecommendationCalculator,
 )
+from app.diagnosis.what_if import (
+    DiagnosisWhatIfCalculator,
+    WhatIfScenarioResult,
+)
 from app.diagnosis.property_address_service import (PropertyAddressService,)
 from app.diagnosis.property_search_service import (PropertySearchService,)
 from app.diagnosis.property_snapshot import build_property_snapshot
@@ -21,6 +25,8 @@ from app.diagnosis.schemas import (
     DiagnosisRequest,
     DiagnosisResponse,
     DiagnosisStatus,
+    DiagnosisWhatIfRequest,
+    DiagnosisWhatIfResponse,
     DepositRecommendationSummary,
     HousingType,
     IndicatorSummary,
@@ -34,6 +40,7 @@ from app.diagnosis.schemas import (
     RiskWeights,
     ValuationReliability,
     ValuationSummary,
+    WhatIfScenarioSummary,
     AddressCandidate,PropertyCandidate,
     PropertySearchRequest,
     PropertySearchResponse,
@@ -430,6 +437,133 @@ def analyze_diagnosis(
         reportDetail=report_detail,
     )
 
+
+
+@router.post(
+    "/diagnoses/what-if",
+    response_model=DiagnosisWhatIfResponse,
+    status_code=status.HTTP_200_OK,
+)
+def calculate_diagnosis_what_if(
+    request: DiagnosisWhatIfRequest,
+) -> DiagnosisWhatIfResponse:
+    try:
+        result = DiagnosisWhatIfCalculator.calculate(
+            mode=request.mode,
+            estimated_sale_price=request.estimated_sale_price,
+            estimated_lease_price=request.estimated_lease_price,
+            baseline_deposit=request.baseline_deposit,
+            scenario_deposit=request.scenario_deposit,
+            sale_price_drop_rate=request.sale_price_drop_rate,
+            lease_price_drop_rate=request.lease_price_drop_rate,
+            active_max_claim_amount=request.active_max_claim_amount,
+            remove_active_mortgage=request.remove_active_mortgage,
+            market_trend_score=request.market_trend_score,
+            unresolved_risk_reasons=tuple(
+                request.unresolved_risk_reasons
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "DIAGNOSIS_WHAT_IF_FAILED",
+                "message": str(exc),
+            },
+        ) from None
+
+    recommendation = result.deposit_recommendation
+    return DiagnosisWhatIfResponse(
+        baseline=what_if_scenario_summary(result.baseline),
+        scenario=what_if_scenario_summary(result.scenario),
+        scoreChange=result.score_change,
+        gradeChanged=result.grade_changed,
+        registryBlockersRemain=result.registry_blockers_remain,
+        unresolvedRiskReasons=list(result.unresolved_risk_reasons),
+        depositRecommendation=DepositRecommendationSummary(
+            recommendedLimit=recommendation.recommended_limit,
+            currentDeposit=result.scenario.deposit,
+            reductionRequired=recommendation.reduction_required,
+            withinRecommendedLimit=recommendation.within_recommended_limit,
+            targetScoreMax=recommendation.target_score_max,
+            targetGrade=recommendation.target_grade,
+            scoreAtLimit=recommendation.score_at_limit,
+            calculationBasis=recommendation.calculation_basis,
+            registryReflected=recommendation.registry_reflected,
+            provisional=recommendation.provisional,
+            adjustmentCanResolveFinalRisk=(
+                recommendation.adjustment_can_resolve_final_risk
+            ),
+            unresolvedRiskReasons=list(
+                recommendation.unresolved_risk_reasons
+            ),
+        ),
+    )
+
+
+def what_if_scenario_summary(
+    result: WhatIfScenarioResult,
+) -> WhatIfScenarioSummary:
+    indicators = result.indicators
+    score = result.score
+    return WhatIfScenarioSummary(
+        valuation=ValuationSummary(
+            estimatedSalePrice=result.estimated_sale_price,
+            estimatedLeasePrice=result.estimated_lease_price,
+        ),
+        deposit=result.deposit,
+        activeMaxClaimAmount=result.active_max_claim_amount,
+        indicators=IndicatorSummary(
+            leaseToSaleRate=round(indicators.lease_to_sale_rate * 100, 2),
+            leasePriceGapRate=round(
+                indicators.lease_price_gap_rate * 100,
+                2,
+            ),
+            collateralBurdenAmount=indicators.collateral_burden_amount,
+            collateralBurdenRate=(
+                round(indicators.collateral_burden_rate * 100, 2)
+                if indicators.collateral_burden_rate is not None
+                else None
+            ),
+            recoverableAmount=indicators.recoverable_amount,
+            depositShortfall=indicators.deposit_shortfall,
+            remainingCollateralCapacity=(
+                indicators.remaining_collateral_capacity
+            ),
+            priceDropScenarios=(
+                {
+                    name: round(value * 100, 2)
+                    for name, value in indicators.price_drop_scenarios.items()
+                }
+                if indicators.price_drop_scenarios is not None
+                else None
+            ),
+        ),
+        risk=RiskSummary(
+            score=result.final_score,
+            baseScore=score.base_total,
+            grade=result.final_grade,
+            breakdown=RiskBreakdown(
+                priceBurden=score.price_burden,
+                leaseMarketDeviation=score.lease_market_deviation,
+                marketTrend=score.market_trend,
+                policyAdjustment=score.policy_adjustment,
+                rightsAdjustment=result.rights_adjustment,
+            ),
+            weights=RiskWeights(
+                priceBurden=RiskRule.LIMITS["price_burden"],
+                leaseMarketDeviation=RiskRule.LIMITS[
+                    "lease_market_deviation"
+                ],
+                marketTrend=RiskRule.LIMITS["market_trend"],
+                total=sum(RiskRule.LIMITS.values()),
+            ),
+            scoreFloor=result.score_floor,
+            floorReasons=list(result.floor_reasons),
+            scoreFloorApplied=result.final_score != score.base_total,
+            provisionalCollateralBasis=score.provisional_collateral_basis,
+        ),
+    )
 
 def valuation_reliability(result) -> ValuationReliability:
     if result.fallback_features:
