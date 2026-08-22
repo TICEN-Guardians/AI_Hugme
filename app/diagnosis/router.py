@@ -20,6 +20,8 @@ from app.diagnosis.schemas import (
     DiagnosisStatus,
     HousingType,
     IndicatorSummary,
+    MarketComparableBin,
+    MarketComparableSummary,
     PropertyResolveRequest,
     PropertyResolveResponse,
     PropertySummary,
@@ -304,6 +306,35 @@ def analyze_diagnosis(
         valuation=ValuationSummary(
             estimatedSalePrice=result.estimated_sale_price,
             estimatedLeasePrice=result.estimated_lease_price,
+        ),
+        marketComparables=MarketComparableSummary(
+            status=result.market_comparables.status,
+            source=result.market_comparables.source,
+            scope=result.market_comparables.scope,
+            sampleCount=result.market_comparables.sample_count,
+            periodStart=result.market_comparables.period_start,
+            periodEnd=result.market_comparables.period_end,
+            areaMin=result.market_comparables.area_min,
+            areaMax=result.market_comparables.area_max,
+            minimum=result.market_comparables.minimum,
+            percentile25=result.market_comparables.percentile_25,
+            median=result.market_comparables.median,
+            percentile75=result.market_comparables.percentile_75,
+            maximum=result.market_comparables.maximum,
+            userDepositPercentile=(
+                result.market_comparables.user_deposit_percentile
+            ),
+            bins=[
+                MarketComparableBin(
+                    lowerBound=item.lower_bound,
+                    upperBound=item.upper_bound,
+                    count=item.count,
+                )
+                for item in result.market_comparables.bins
+            ],
+            warnings=list(
+                result.market_comparables.warnings
+            ),
         ),
         indicators=IndicatorSummary(
             leaseToSaleRate=round(indicators.lease_to_sale_rate * 100, 2),

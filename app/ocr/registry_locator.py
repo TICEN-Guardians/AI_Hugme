@@ -210,7 +210,12 @@ class RegistryTextLocator:
                         first, last = sorted((receipt_page, purpose_page))
                         candidate_groups.add(tuple(range(first, last + 1)))
         else:
-            candidate_groups.update((page,) for page in purpose_pages)
+            for page in purpose_pages:
+                candidate_groups.add((page,))
+                if page > 1:
+                    candidate_groups.add((page - 1, page))
+                if page < len(self.page_texts):
+                    candidate_groups.add((page, page + 1))
         if not candidate_groups:
             return None
 

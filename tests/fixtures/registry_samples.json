@@ -1,0 +1,195 @@
+{
+  "samples": [
+    {
+      "id": "D01",
+      "filename": "화서 아파트_근저당 없_소유자 노진현.pdf",
+      "documentType": "CONDOMINIUM",
+      "addressTokens": ["수원시", "화서동", "250-4", "107동", "1301호"],
+      "exclusiveArea": 59.414,
+      "owners": [
+        {"names": ["노진현"], "share": "1/2"},
+        {"names": ["현주"], "share": "1/2"}
+      ],
+      "activeMortgageCount": 0,
+      "totalActiveMaxClaimAmount": 0,
+      "activeJeonseAmounts": []
+    },
+    {
+      "id": "D02",
+      "filename": "장충동_다세대_근저당 없음_면적 못찾음.pdf",
+      "documentType": "CONDOMINIUM",
+      "addressTokens": ["중구", "장충동1가", "38-12", "2층", "202호"],
+      "exclusiveArea": 26.78,
+      "owners": [{"names": ["김민혜"]}],
+      "activeMortgageCount": 0,
+      "totalActiveMaxClaimAmount": 0,
+      "activeJeonseAmounts": []
+    },
+    {
+      "id": "D03",
+      "filename": "등기부등본_인천주안_오피스텔.pdf",
+      "documentType": "CONDOMINIUM",
+      "addressTokens": ["미추홀구", "주안동", "75-89", "6층", "602호"],
+      "exclusiveArea": 57.553,
+      "owners": [{"names": ["이경순"]}],
+      "activeMortgageCount": 0,
+      "totalActiveMaxClaimAmount": 0,
+      "activeJeonseAmounts": []
+    },
+    {
+      "id": "D04",
+      "filename": "등기부등본_신림_단독_토지 (1).pdf",
+      "documentType": "LAND",
+      "addressTokens": ["관악구", "신림동", "1604-38"],
+      "owners": [{"names": ["유기숙"]}],
+      "activeMortgageCount": 0,
+      "totalActiveMaxClaimAmount": 0,
+      "activeJeonseAmounts": []
+    },
+    {
+      "id": "D05",
+      "filename": "등기부등본_신림_단독_건물.pdf",
+      "documentType": "BUILDING",
+      "addressTokens": ["관악구", "신림동", "1604-38"],
+      "owners": [{"names": ["유기숙"]}],
+      "activeMortgageCount": 0,
+      "totalActiveMaxClaimAmount": 0,
+      "activeJeonseAmounts": []
+    },
+    {
+      "id": "D06",
+      "filename": "등기부등본_기흥구_다가구_토지.pdf",
+      "documentType": "LAND",
+      "addressTokens": ["기흥구", "영덕동", "937-2"],
+      "owners": [{"names": ["이은원"]}],
+      "activeMortgageCount": 1,
+      "totalActiveMaxClaimAmount": 132000000,
+      "activeJeonseAmounts": []
+    },
+    {
+      "id": "D07",
+      "filename": "기흥구_다가구_근저당 있음.pdf",
+      "documentType": "BUILDING",
+      "addressTokens": ["기흥구", "영덕동", "937-2"],
+      "owners": [{"names": ["이은원"]}],
+      "activeMortgageCount": 1,
+      "totalActiveMaxClaimAmount": 132000000,
+      "activeJeonseAmounts": [150000000, 150000000]
+    },
+    {
+      "id": "D08",
+      "filename": "등기부등본_강서화곡_다세대 (1).pdf",
+      "documentType": "CONDOMINIUM",
+      "addressTokens": ["강서구", "화곡동", "359-20", "비동", "203호"],
+      "exclusiveArea": 29.9,
+      "owners": [{"names": ["김정훈"]}],
+      "activeMortgageCount": 0,
+      "totalActiveMaxClaimAmount": 0,
+      "activeJeonseAmounts": []
+    },
+    {
+      "id": "D09",
+      "filename": "1756-2016-004148_26037602091_RIS.pdf",
+      "documentType": "CONDOMINIUM",
+      "addressTokens": ["영주시", "가흥동", "1620", "108동", "2702호"],
+      "exclusiveArea": 84.675,
+      "owners": [{"names": ["주식회사부영주택", "부영주택"]}],
+      "activeMortgageCount": 1,
+      "totalActiveMaxClaimAmount": 81600000,
+      "activeJeonseAmounts": []
+    },
+    {
+      "id": "D10",
+      "filename": "1356-2013-000657_26040279986_RIS.pdf",
+      "documentType": "CONDOMINIUM",
+      "addressTokens": ["성남시", "분당구", "정자동", "162-1", "1층", "101호"],
+      "exclusiveArea": 455.93,
+      "owners": [{"names": ["주식회사펜탑", "펜탑"]}],
+      "activeMortgageCount": 1,
+      "totalActiveMaxClaimAmount": 16476000000,
+      "activeJeonseAmounts": [600000000]
+    },
+    {
+      "id": "D11",
+      "filename": "2442-2008-004018_26040279985_RIS.pdf",
+      "documentType": "CONDOMINIUM",
+      "addressTokens": ["송파구", "가락동", "91", "4층", "402호"],
+      "exclusiveArea": 38.53,
+      "owners": [{"names": ["송원규"]}],
+      "activeMortgageCount": 0,
+      "totalActiveMaxClaimAmount": 0,
+      "activeJeonseAmounts": []
+    },
+    {
+      "id": "D12",
+      "filename": "2442-2008-004015_26040279984_RIS.pdf",
+      "documentType": "CONDOMINIUM",
+      "addressTokens": ["송파구", "가락동", "91", "2층", "202호"],
+      "exclusiveArea": 51.28,
+      "owners": [{"names": ["송원규"]}],
+      "activeMortgageCount": 0,
+      "totalActiveMaxClaimAmount": 0,
+      "activeJeonseAmounts": []
+    },
+    {
+      "id": "D13",
+      "filename": "2701-2016-004811_26040279983_RIS.pdf",
+      "documentType": "CONDOMINIUM",
+      "addressTokens": ["마포구", "신공덕동", "5-75", "2층", "201호"],
+      "exclusiveArea": 19.73,
+      "owners": [{"names": ["윤성수"]}],
+      "activeMortgageCount": 0,
+      "totalActiveMaxClaimAmount": 0,
+      "activeJeonseAmounts": []
+    },
+    {
+      "id": "D14",
+      "filename": "1601-2012-003236_26040279982_RIS.pdf",
+      "documentType": "BUILDING",
+      "addressTokens": ["유성구", "덕명동", "590-2"],
+      "owners": [
+        {"names": ["박찬일"], "share": "1/2"},
+        {"names": ["임재연"], "share": "1/2"}
+      ],
+      "activeMortgageCount": 4,
+      "totalActiveMaxClaimAmount": 1260000000,
+      "activeJeonseAmounts": []
+    },
+    {
+      "id": "D15",
+      "filename": "1601-1996-785559_26040279981_RIS.pdf",
+      "documentType": "LAND",
+      "addressTokens": ["유성구", "덕명동", "590-2"],
+      "owners": [
+        {"names": ["박찬일"], "share": "1/2"},
+        {"names": ["임재연"], "share": "1/2"}
+      ],
+      "activeMortgageCount": 4,
+      "totalActiveMaxClaimAmount": 1260000000,
+      "activeJeonseAmounts": []
+    }
+  ],
+  "pairs": [
+    {
+      "id": "D04+D05",
+      "sampleIds": ["D04", "D05"],
+      "activeMortgageCount": 0,
+      "totalActiveMaxClaimAmount": 0,
+      "activeJeonseAmounts": []
+    },
+    {
+      "id": "D06+D07",
+      "sampleIds": ["D06", "D07"],
+      "activeMortgageCount": 1,
+      "totalActiveMaxClaimAmount": 132000000,
+      "activeJeonseAmounts": [150000000, 150000000]
+    },
+    {
+      "id": "D14+D15",
+      "sampleIds": ["D14", "D15"],
+      "activeMortgageCount": 4,
+      "totalActiveMaxClaimAmount": 1260000000,
+      "activeJeonseAmounts": []
+    }
+  ]
+}
