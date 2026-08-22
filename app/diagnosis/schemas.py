@@ -453,6 +453,25 @@ class IndicatorSummary(ApiModel):
     )
 
 
+class DepositRecommendationSummary(ApiModel):
+    recommended_limit: int = Field(alias="recommendedLimit", ge=0)
+    current_deposit: int = Field(alias="currentDeposit", gt=0)
+    reduction_required: int = Field(alias="reductionRequired", ge=0)
+    within_recommended_limit: bool = Field(alias="withinRecommendedLimit")
+    target_score_max: int = Field(alias="targetScoreMax", ge=0, le=100)
+    target_grade: RiskGrade = Field(alias="targetGrade")
+    score_at_limit: int = Field(alias="scoreAtLimit", ge=0, le=100)
+    calculation_basis: str = Field(alias="calculationBasis")
+    registry_reflected: bool = Field(alias="registryReflected")
+    provisional: bool
+    adjustment_can_resolve_final_risk: bool = Field(
+        alias="adjustmentCanResolveFinalRisk"
+    )
+    unresolved_risk_reasons: list[str] = Field(
+        default_factory=list,
+        alias="unresolvedRiskReasons",
+    )
+
 class RiskBreakdown(ApiModel):
     price_burden: int = Field(alias="priceBurden")
     lease_market_deviation: int = Field(alias="leaseMarketDeviation")
@@ -571,6 +590,9 @@ class DiagnosisResponse(ApiModel):
         alias="marketComparables"
     )
     indicators: IndicatorSummary
+    deposit_recommendation: DepositRecommendationSummary = Field(
+        alias="depositRecommendation"
+    )
     risk: RiskSummary
 
     forced_warnings: list[str] = Field(

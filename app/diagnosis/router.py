@@ -9,6 +9,9 @@ from app.diagnosis.external.building_ledger.selector import (BuildingLedgerSelec
 from app.diagnosis.external.building_ledger.service import (BuildingLedgerService,)
 from app.diagnosis.housing_type_resolver import (HousingTypeResolutionError,)
 from app.diagnosis.diagnosis_dependencies import get_diagnosis_pipeline
+from app.diagnosis.deposit_recommendation import (
+    DepositRecommendationCalculator,
+)
 from app.diagnosis.property_address_service import (PropertyAddressService,)
 from app.diagnosis.property_search_service import (PropertySearchService,)
 from app.diagnosis.property_snapshot import build_property_snapshot
@@ -18,6 +21,7 @@ from app.diagnosis.schemas import (
     DiagnosisRequest,
     DiagnosisResponse,
     DiagnosisStatus,
+    DepositRecommendationSummary,
     HousingType,
     IndicatorSummary,
     MarketComparableBin,
@@ -289,6 +293,20 @@ def analyze_diagnosis(
         ),
         default=None,
     )
+    active_max_claim_amount = (
+        indicators.collateral_burden_amount - request.deposit
+        if indicators.collateral_burden_amount is not None
+        else None
+    )
+    deposit_recommendation = DepositRecommendationCalculator.calculate(
+        mode=request.mode,
+        estimated_sale_price=result.estimated_sale_price,
+        estimated_lease_price=result.estimated_lease_price,
+        current_deposit=request.deposit,
+        active_max_claim_amount=active_max_claim_amount,
+        severity=result.risk_severity.severity,
+        unresolved_risk_reasons=result.forced_warning.floor_reasons,
+    )
     reliability = valuation_reliability(result)
     report_detail = explain_report(
         build_report_detail(request, result, reliability)
@@ -355,6 +373,26 @@ def analyze_diagnosis(
                 }
                 if indicators.price_drop_scenarios is not None
                 else None
+            ),
+        ),
+        depositRecommendation=DepositRecommendationSummary(
+            recommendedLimit=deposit_recommendation.recommended_limit,
+            currentDeposit=request.deposit,
+            reductionRequired=deposit_recommendation.reduction_required,
+            withinRecommendedLimit=(
+                deposit_recommendation.within_recommended_limit
+            ),
+            targetScoreMax=deposit_recommendation.target_score_max,
+            targetGrade=deposit_recommendation.target_grade,
+            scoreAtLimit=deposit_recommendation.score_at_limit,
+            calculationBasis=deposit_recommendation.calculation_basis,
+            registryReflected=deposit_recommendation.registry_reflected,
+            provisional=deposit_recommendation.provisional,
+            adjustmentCanResolveFinalRisk=(
+                deposit_recommendation.adjustment_can_resolve_final_risk
+            ),
+            unresolvedRiskReasons=list(
+                deposit_recommendation.unresolved_risk_reasons
             ),
         ),
         risk=RiskSummary(
