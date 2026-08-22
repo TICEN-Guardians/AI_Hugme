@@ -56,6 +56,7 @@ def result(
             "mortgages": [mortgage],
             "jeonse_rights": [],
             "leasehold_registrations": [],
+            "mortgage_link_signatures": {},
             "flags": dict(FLAGS),
             "active_mortgage_count": 1,
             "total_active_max_claim_amount": 650000000,
@@ -76,6 +77,51 @@ class RegistryMergeTest(unittest.TestCase):
         self.assertEqual(
             650000000,
             merged["registry_rights"]["total_active_max_claim_amount"],
+        )
+
+    def test_common_amendment_deduplicates_joint_collateral_with_changed_debtor(self):
+        building = result("BUILDING")
+        land = result("LAND")
+        building_mortgage = building["registry_rights"]["mortgages"][0]
+        land_mortgage = land["registry_rights"]["mortgages"][0]
+        building_mortgage["creditor"] = None
+        building_mortgage["debtor"] = "이은원"
+        land_mortgage["debtor"] = "이상희"
+        signature = [("2025-11-03", "제5755588호", 132000000)]
+        building["registry_rights"]["mortgage_link_signatures"] = {"1": signature}
+        land["registry_rights"]["mortgage_link_signatures"] = {"1": signature}
+        building_mortgage["max_claim_amount"] = 132000000
+        land_mortgage["max_claim_amount"] = 132000000
+
+        merged = merge_registry_results(
+            [building, land],
+            ["building.pdf", "land.pdf"],
+        )
+
+        self.assertEqual(
+            1,
+            merged["registry_rights"]["active_mortgage_count"],
+        )
+        self.assertEqual(
+            132000000,
+            merged["registry_rights"]["total_active_max_claim_amount"],
+        )
+
+    def test_common_amendment_without_repeated_amount_uses_current_amount(self):
+        building = result("BUILDING")
+        land = result("LAND")
+        signature = [("2026-04-30", "제2417520호", None)]
+        building["registry_rights"]["mortgage_link_signatures"] = {"1": signature}
+        land["registry_rights"]["mortgage_link_signatures"] = {"1": signature}
+
+        merged = merge_registry_results(
+            [building, land],
+            ["building.pdf", "land.pdf"],
+        )
+
+        self.assertEqual(
+            1,
+            merged["registry_rights"]["active_mortgage_count"],
         )
 
     def test_rejects_documents_for_different_properties(self):

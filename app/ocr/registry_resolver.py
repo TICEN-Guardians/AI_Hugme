@@ -11,6 +11,7 @@ from app.ocr.registry_text_rules import (
     calc_age_from_jumin,
     classify_right_kind,
     split_registry_sections,
+    target_rank_nos_from_purpose,
 )
 
 
@@ -153,6 +154,10 @@ def _resolve_rights(
         section_text = sections["gap" if item.section == "갑구" else "eul"]
         if section_text is None:
             continue
+        target_candidates = list(dict.fromkeys((
+            *item.target_rank_nos,
+            *target_rank_nos_from_purpose(item.purpose),
+        )))
         located = locator.locate_right(
             section_text=section_text,
             rank_no=item.rank_no,
@@ -162,7 +167,7 @@ def _resolve_rights(
             holder=item.holder,
             debtor=item.debtor,
             amount=item.amount,
-            target_rank_nos=item.target_rank_nos,
+            target_rank_nos=target_candidates,
             joint_collateral_id=item.joint_collateral_id,
         )
         if located is None:
@@ -171,7 +176,7 @@ def _resolve_rights(
         kind = classify_right_kind(item.purpose)
         target_rank_nos = [
             rank.strip()
-            for rank in item.target_rank_nos
+            for rank in target_candidates
             if rank.strip() and locator.target_is_supported(rank, item.purpose, page_text)
         ]
         target_linked_kind = kind in {
@@ -210,12 +215,22 @@ def _resolve_rights(
 
     base_mortgages = [entry for entry in entries if entry["kind"] == "MORTGAGE"]
     mortgage_by_rank = {entry["rank_no"]: entry for entry in base_mortgages}
+    mortgage_link_signatures = {
+        entry["rank_no"]: set() for entry in base_mortgages
+    }
     for amendment in entries:
-        if amendment["kind"] != "MORTGAGE_AMEND" or amendment["amount"] is None:
+        if amendment["kind"] != "MORTGAGE_AMEND":
             continue
         for target in amendment["target_rank_nos"]:
-            if target in mortgage_by_rank:
-                mortgage_by_rank[target]["amount"] = amendment["amount"]
+            mortgage = mortgage_by_rank.get(target)
+            if mortgage is None:
+                continue
+            for field in ("amount", "holder", "debtor"):
+                if amendment[field] is not None:
+                    mortgage[field] = amendment[field]
+            mortgage_link_signatures[target].add((
+                amendment["registered_at"], amendment["receipt_no"], amendment["amount"]
+            ))
 
     mortgages = [
         {
@@ -325,6 +340,10 @@ def _resolve_rights(
         "mortgages": mortgages,
         "jeonse_rights": jeonse_rights,
         "leasehold_registrations": leaseholds,
+        "mortgage_link_signatures": {
+            rank: sorted(signatures, key=str)
+            for rank, signatures in mortgage_link_signatures.items()
+        },
         "flags": flags,
         "active_mortgage_count": (
             len(active_mortgages) if eul_status != "PARSE_FAILED" else None

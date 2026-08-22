@@ -52,6 +52,16 @@ def classify_right_kind(evidence: str) -> str:
     return "OTHER"
 
 
+def target_rank_nos_from_purpose(purpose: str) -> list[str]:
+    ranks = []
+    for match in re.finditer(r"(\d+(?:-\d+)?)\s*번(?:\s*\((\d+)\))?", purpose or ""):
+        base, suffix = match.groups()
+        rank = f"{base}({suffix})" if suffix else base
+        if rank not in ranks:
+            ranks.append(rank)
+    return ranks
+
+
 def calc_age_from_jumin(jumin_front: str, as_of: date | None = None) -> int | None:
     as_of = as_of or date.today()
     digits = jumin_front.split("-")[0]

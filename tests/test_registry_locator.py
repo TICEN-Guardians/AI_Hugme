@@ -5,6 +5,7 @@ from app.ocr.registry_locator import (
     rank_is_supported,
     value_is_supported,
 )
+from app.ocr.registry_text_rules import target_rank_nos_from_purpose
 
 
 class RegistryTextLocatorTest(unittest.TestCase):
@@ -33,6 +34,27 @@ class RegistryTextLocatorTest(unittest.TestCase):
         self.assertIsNotNone(located)
         self.assertEqual((1, 2), located.pages)
 
+    def test_locates_a_right_without_receipt_split_across_adjacent_pages(self):
+        pages = (
+            "【갑구】\n1\n소유권보존\n소유자 국제자산신탁주식회사",
+            "신탁\n신탁원부 제2016-4956호\n2\n1번 신탁등기말소",
+        )
+        located = RegistryTextLocator(pages).locate_right(
+            section_text="\n".join(pages),
+            rank_no="1",
+            purpose="신탁",
+            receipt_no=None,
+            registered_at=None,
+            holder="국제자산신탁주식회사",
+            debtor=None,
+            amount=None,
+            target_rank_nos=[],
+            joint_collateral_id="신탁원부 제2016-4956호",
+        )
+
+        self.assertIsNotNone(located)
+        self.assertEqual((1, 2), located.pages)
+
     def test_locates_an_owner_whose_address_continues_on_the_next_page(self):
         pages = (
             "소유자 이은원 681130-*******",
@@ -47,6 +69,14 @@ class RegistryTextLocatorTest(unittest.TestCase):
 
         self.assertIsNotNone(located)
         self.assertEqual((1, 2), located.pages)
+
+    def test_extracts_composite_target_ranks_from_cancellation_purpose(self):
+        self.assertEqual(
+            ["7(1)", "7(2)"],
+            target_rank_nos_from_purpose(
+                "7번(1)근저당권설정, 7번(2)근저당권설정 등기말소"
+            ),
+        )
 
     def test_composite_rank_can_be_split_between_table_lines(self):
         text = "7\n(1)근저당권설정\n채권최고액 금4,200,000,000원"
