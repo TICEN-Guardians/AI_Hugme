@@ -67,6 +67,28 @@ def result(
 
 
 class RegistryMergeTest(unittest.TestCase):
+    def test_single_document_right_keeps_filename_and_page_evidence(self):
+        single = result("CONDOMINIUM")
+        single["registry_rights"]["rights"] = [{
+            "section": "을구",
+            "rank_no": "1",
+            "kind": "MORTGAGE",
+            "receipt_no": "제100호",
+            "registered_at": "2020-01-02",
+            "holder": "한국은행",
+            "debtor": "홍길동",
+            "amount": 650000000,
+            "raw_text": "[PAGE 2] 근저당권설정",
+            "status": "ACTIVE",
+        }]
+
+        merged = merge_registry_results([single], ["registry] [PAGE 99].pdf"])
+
+        self.assertEqual(
+            "[FILE registry_ _PAGE 99_.pdf] [PAGE 2] 근저당권설정",
+            merged["registry_rights"]["rights"][0]["raw_text"],
+        )
+
     def test_land_and_building_common_claim_is_not_summed_twice(self):
         merged = merge_registry_results(
             [result("BUILDING"), result("LAND")],

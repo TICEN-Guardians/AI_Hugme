@@ -11,6 +11,10 @@ def _canonical(value: str | None) -> str:
     return re.sub(r"[^0-9A-Za-z가-힣]", "", value or "").lower()
 
 
+def _source_filename(value: str) -> str:
+    return re.sub(r"[\[\]\r\n]+", "_", value).strip() or "unnamed.pdf"
+
+
 def _owner_identity(owner: dict) -> tuple[str, str, str]:
     return (
         _canonical(owner.get("name")),
@@ -108,7 +112,17 @@ def merge_registry_results(results: list[dict], filenames: list[str]) -> dict:
     if len(results) != len(filenames) or not results:
         raise ValueError("병합할 등기 결과와 파일명이 일치하지 않습니다.")
     if len(results) == 1:
-        return results[0]
+        single = dict(results[0])
+        single_rights = dict(single["registry_rights"])
+        single_rights["rights"] = [
+            {
+                **right,
+                "raw_text": f"[FILE {_source_filename(filenames[0])}] {right['raw_text']}",
+            }
+            for right in single_rights["rights"]
+        ]
+        single["registry_rights"] = single_rights
+        return single
 
     addresses = {_canonical(result.get("property_address")) for result in results}
     if "" in addresses or len(addresses) != 1:
@@ -146,7 +160,7 @@ def merge_registry_results(results: list[dict], filenames: list[str]) -> dict:
     for filename, rights in zip(filenames, rights_by_document):
         for right in rights["rights"]:
             copied = dict(right)
-            copied["raw_text"] = f"[FILE {filename}] {right['raw_text']}"
+            copied["raw_text"] = f"[FILE {_source_filename(filename)}] {right['raw_text']}"
             public_rights.append(copied)
 
     mortgage_groups = []
