@@ -51,6 +51,32 @@ class DiagnosisWhatIfCalculatorTest(unittest.TestCase):
             result.baseline.final_score,
         )
 
+    def test_detailed_scenario_can_adjust_active_max_claim_amount(self) -> None:
+        result = DiagnosisWhatIfCalculator.calculate(
+            mode=DiagnosisMode.DETAILED,
+            estimated_sale_price=400_000_000,
+            estimated_lease_price=180_000_000,
+            baseline_deposit=200_000_000,
+            scenario_deposit=200_000_000,
+            sale_price_drop_rate=0,
+            lease_price_drop_rate=0,
+            active_max_claim_amount=200_000_000,
+            scenario_active_max_claim_amount=50_000_000,
+            remove_active_mortgage=False,
+            market_trend_score=0,
+            unresolved_risk_reasons=(),
+        )
+
+        self.assertEqual(
+            result.baseline.active_max_claim_amount,
+            200_000_000,
+        )
+        self.assertEqual(
+            result.scenario.active_max_claim_amount,
+            50_000_000,
+        )
+        self.assertLess(result.scenario.final_score, result.baseline.final_score)
+
     def test_registry_blocker_keeps_final_score_floor(self) -> None:
         result = DiagnosisWhatIfCalculator.calculate(
             mode=DiagnosisMode.DETAILED,

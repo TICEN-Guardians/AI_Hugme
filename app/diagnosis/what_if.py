@@ -58,10 +58,12 @@ class DiagnosisWhatIfCalculator:
         remove_active_mortgage: bool,
         market_trend_score: int,
         unresolved_risk_reasons: tuple[str, ...],
+        scenario_active_max_claim_amount: int | None = None,
     ) -> DiagnosisWhatIfResult:
         cls._validate(
             mode=mode,
             active_max_claim_amount=active_max_claim_amount,
+            scenario_active_max_claim_amount=scenario_active_max_claim_amount,
             remove_active_mortgage=remove_active_mortgage,
             market_trend_score=market_trend_score,
         )
@@ -78,7 +80,11 @@ class DiagnosisWhatIfCalculator:
             unresolved_risk_reasons=reasons,
         )
         scenario_active_claim = (
-            0 if remove_active_mortgage else active_max_claim_amount
+            0
+            if remove_active_mortgage
+            else scenario_active_max_claim_amount
+            if scenario_active_max_claim_amount is not None
+            else active_max_claim_amount
         )
         scenario = cls._evaluate(
             mode=mode,
@@ -175,12 +181,16 @@ class DiagnosisWhatIfCalculator:
     def _validate(
         mode: DiagnosisMode,
         active_max_claim_amount: int | None,
+        scenario_active_max_claim_amount: int | None,
         remove_active_mortgage: bool,
         market_trend_score: int,
     ) -> None:
         if not 0 <= market_trend_score <= RiskRule.LIMITS["market_trend"]:
             raise ValueError("시장 추세 점수가 허용 범위를 벗어났습니다")
-        if mode == DiagnosisMode.QUICK and active_max_claim_amount is not None:
+        if mode == DiagnosisMode.QUICK and (
+            active_max_claim_amount is not None
+            or scenario_active_max_claim_amount is not None
+        ):
             raise ValueError("간편진단에는 선순위 근저당을 포함할 수 없습니다")
         if remove_active_mortgage and active_max_claim_amount is None:
             raise ValueError("말소를 가정할 선순위 근저당을 확인하지 못했습니다")
