@@ -25,6 +25,25 @@ class RegistryResolverSafetyTest(unittest.TestCase):
         self.assertEqual("NEEDS_REVIEW", result["parse_status"])
         self.assertEqual("MEDIUM", result["parse_confidence"])
 
+    def test_condominium_never_uses_legal_dong_as_building_unit(self):
+        value = extraction().model_copy(deep=True)
+        property_address = (
+            "인천광역시 미추홀구 주안동 75-89 스타캐슬 제6층 제602호"
+        )
+        value.property_address = property_address
+        value.unit.dong_name = "주안"
+        value.unit.floor = "6"
+        value.unit.ho_name = "602"
+        page_one = PAGE_ONE.replace(
+            "경기도 수원시 예시로 1 제3층 제302호",
+            property_address,
+        )
+
+        result = resolve_registry_extraction(value, (page_one, PAGE_TWO))
+
+        self.assertIsNone(result["dong_name"])
+        self.assertEqual(6, result["floor"])
+        self.assertEqual("602", result["ho_name"])
     def test_land_or_general_building_never_uses_legal_dong_as_unit_dong(self):
         value = extraction().model_copy(deep=True)
         building_page = PAGE_ONE.replace("[집합건물]", "[건물]")
