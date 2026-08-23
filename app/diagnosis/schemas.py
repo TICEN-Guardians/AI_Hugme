@@ -493,6 +493,11 @@ class DiagnosisWhatIfRequest(ApiModel):
         alias="activeMaxClaimAmount",
         ge=0,
     )
+    scenario_active_max_claim_amount: int | None = Field(
+        default=None,
+        alias="scenarioActiveMaxClaimAmount",
+        ge=0,
+    )
     remove_active_mortgage: bool = Field(
         default=False,
         alias="removeActiveMortgage",
@@ -506,7 +511,10 @@ class DiagnosisWhatIfRequest(ApiModel):
     @model_validator(mode="after")
     def validate_scenario(self):
         if self.mode == DiagnosisMode.QUICK:
-            if self.active_max_claim_amount is not None:
+            if (
+                self.active_max_claim_amount is not None
+                or self.scenario_active_max_claim_amount is not None
+            ):
                 raise ValueError("간편진단에는 선순위 근저당을 포함할 수 없습니다")
             if self.remove_active_mortgage:
                 raise ValueError("간편진단에는 근저당 말소 가정을 적용할 수 없습니다")

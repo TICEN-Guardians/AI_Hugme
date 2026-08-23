@@ -457,6 +457,9 @@ def calculate_diagnosis_what_if(
             sale_price_drop_rate=request.sale_price_drop_rate,
             lease_price_drop_rate=request.lease_price_drop_rate,
             active_max_claim_amount=request.active_max_claim_amount,
+            scenario_active_max_claim_amount=(
+                request.scenario_active_max_claim_amount
+            ),
             remove_active_mortgage=request.remove_active_mortgage,
             market_trend_score=request.market_trend_score,
             unresolved_risk_reasons=tuple(

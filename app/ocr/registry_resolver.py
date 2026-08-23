@@ -74,6 +74,12 @@ def _verified_share(share: str | None, page_text: str) -> str | None:
 def _unit_from_verified_address(address: str | None, suffix: str) -> str | None:
     if not address:
         return None
+    if suffix == "동":
+        match = re.search(
+            r"(?:제\s*([가-힣A-Za-z0-9-]+)|([A-Za-z0-9-]+))\s*동\b",
+            address,
+        )
+        return (match.group(1) or match.group(2)) if match else None
     match = re.search(rf"(?:제\s*)?([가-힣A-Za-z0-9-]+)\s*{suffix}\b", address)
     return match.group(1) if match else None
 
@@ -88,6 +94,18 @@ def _normalise_unit_label(value: str | None, suffix: str) -> str | None:
         normalized = normalized[:-1]
     return normalized.strip() or None
 
+
+def _is_legal_dong_label(value: str | None, address: str | None) -> bool:
+    candidate = _normalise_unit_label(value, "동")
+    if not candidate or not address:
+        return False
+    escaped = re.escape(candidate)
+    legal_dong = re.search(
+        rf"{escaped}\s*동\s+(?:산\s*)?\d+(?:-\d+)?(?:\s|$)",
+        address,
+    )
+    explicit_unit = re.search(rf"제\s*{escaped}\s*동\b", address)
+    return legal_dong is not None and explicit_unit is None
 
 def _property_address_from_header(text: str) -> str | None:
     match = re.search(
@@ -387,9 +405,14 @@ def resolve_registry_extraction(
         else "BUILDING"
     )
     if is_condominium:
-        dong_name = _normalise_unit_label(
+        verified_dong = _normalise_unit_label(
             _verified_value(unit.dong_name, locator), "동"
-        ) or _unit_from_verified_address(property_address, "동")
+        )
+        if _is_legal_dong_label(verified_dong, property_address):
+            verified_dong = None
+        dong_name = verified_dong or _unit_from_verified_address(
+            property_address, "동"
+        )
         floor = _to_int(_verified_value(unit.floor, locator))
         if floor is None:
             floor = _to_int(_unit_from_verified_address(property_address, "층"))
