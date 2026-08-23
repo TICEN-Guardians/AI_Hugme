@@ -453,6 +453,68 @@ class IndicatorSummary(ApiModel):
     )
 
 
+class DepositRecommendationSummary(ApiModel):
+    recommended_limit: int = Field(alias="recommendedLimit", ge=0)
+    current_deposit: int = Field(alias="currentDeposit", gt=0)
+    reduction_required: int = Field(alias="reductionRequired", ge=0)
+    within_recommended_limit: bool = Field(alias="withinRecommendedLimit")
+    target_score_max: int = Field(alias="targetScoreMax", ge=0, le=100)
+    target_grade: RiskGrade = Field(alias="targetGrade")
+    score_at_limit: int = Field(alias="scoreAtLimit", ge=0, le=100)
+    calculation_basis: str = Field(alias="calculationBasis")
+    registry_reflected: bool = Field(alias="registryReflected")
+    provisional: bool
+    adjustment_can_resolve_final_risk: bool = Field(
+        alias="adjustmentCanResolveFinalRisk"
+    )
+    unresolved_risk_reasons: list[str] = Field(
+        default_factory=list,
+        alias="unresolvedRiskReasons",
+    )
+
+class DiagnosisWhatIfRequest(ApiModel):
+    mode: DiagnosisMode
+    estimated_sale_price: int = Field(alias="estimatedSalePrice", gt=0)
+    estimated_lease_price: int = Field(alias="estimatedLeasePrice", gt=0)
+    baseline_deposit: int = Field(alias="baselineDeposit", gt=0)
+    scenario_deposit: int = Field(alias="scenarioDeposit", gt=0)
+    sale_price_drop_rate: int = Field(
+        alias="salePriceDropRate",
+        ge=0,
+        le=50,
+    )
+    lease_price_drop_rate: int = Field(
+        alias="leasePriceDropRate",
+        ge=0,
+        le=50,
+    )
+    active_max_claim_amount: int | None = Field(
+        default=None,
+        alias="activeMaxClaimAmount",
+        ge=0,
+    )
+    remove_active_mortgage: bool = Field(
+        default=False,
+        alias="removeActiveMortgage",
+    )
+    market_trend_score: int = Field(alias="marketTrendScore", ge=0, le=10)
+    unresolved_risk_reasons: list[str] = Field(
+        default_factory=list,
+        alias="unresolvedRiskReasons",
+    )
+
+    @model_validator(mode="after")
+    def validate_scenario(self):
+        if self.mode == DiagnosisMode.QUICK:
+            if self.active_max_claim_amount is not None:
+                raise ValueError("간편진단에는 선순위 근저당을 포함할 수 없습니다")
+            if self.remove_active_mortgage:
+                raise ValueError("간편진단에는 근저당 말소 가정을 적용할 수 없습니다")
+        if self.remove_active_mortgage and self.active_max_claim_amount is None:
+            raise ValueError("말소를 가정할 선순위 근저당을 확인하지 못했습니다")
+        return self
+
+
 class RiskBreakdown(ApiModel):
     price_burden: int = Field(alias="priceBurden")
     lease_market_deviation: int = Field(alias="leaseMarketDeviation")
@@ -488,6 +550,32 @@ class RiskSummary(ApiModel):
         default=False,
         alias="provisionalCollateralBasis",
         description="담보부담률을 확정하지 못해 전세가율을 대신 사용했는지 여부",
+    )
+
+
+class WhatIfScenarioSummary(ApiModel):
+    valuation: ValuationSummary
+    deposit: int = Field(gt=0)
+    active_max_claim_amount: int | None = Field(
+        alias="activeMaxClaimAmount",
+        ge=0,
+    )
+    indicators: IndicatorSummary
+    risk: RiskSummary
+
+
+class DiagnosisWhatIfResponse(ApiModel):
+    baseline: WhatIfScenarioSummary
+    scenario: WhatIfScenarioSummary
+    score_change: int = Field(alias="scoreChange", ge=-100, le=100)
+    grade_changed: bool = Field(alias="gradeChanged")
+    registry_blockers_remain: bool = Field(alias="registryBlockersRemain")
+    unresolved_risk_reasons: list[str] = Field(
+        default_factory=list,
+        alias="unresolvedRiskReasons",
+    )
+    deposit_recommendation: DepositRecommendationSummary = Field(
+        alias="depositRecommendation"
     )
 
 
@@ -571,6 +659,9 @@ class DiagnosisResponse(ApiModel):
         alias="marketComparables"
     )
     indicators: IndicatorSummary
+    deposit_recommendation: DepositRecommendationSummary = Field(
+        alias="depositRecommendation"
+    )
     risk: RiskSummary
 
     forced_warnings: list[str] = Field(

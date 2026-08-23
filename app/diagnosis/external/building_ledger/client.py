@@ -16,6 +16,7 @@ class BuildingLedgerClient:
         "BldRgstHubService"
     )
     MAX_ATTEMPTS = 3
+    MAX_INVALID_PAYLOAD_ATTEMPTS = 5
     RETRY_BACKOFF_SECONDS = 0.5
 
     def __init__(
@@ -135,9 +136,9 @@ class BuildingLedgerClient:
             params.update(extra_params)
 
         error: requests.RequestException | ValueError | None = None
-        last_attempt = self.MAX_ATTEMPTS - 1
+        last_attempt = self.MAX_INVALID_PAYLOAD_ATTEMPTS - 1
 
-        for attempt in range(self.MAX_ATTEMPTS):
+        for attempt in range(self.MAX_INVALID_PAYLOAD_ATTEMPTS):
             try:
                 response = self.session.get(
                     f"{self.BASE_URL}/{endpoint}",
@@ -152,11 +153,16 @@ class BuildingLedgerClient:
                 status = exc.response.status_code
                 if status not in {429, 500, 502, 503, 504}:
                     break
+                if attempt >= self.MAX_ATTEMPTS - 1:
+                    break
             except (
                 requests.ConnectionError,
                 requests.Timeout,
-                requests.exceptions.JSONDecodeError,
             ) as exc:
+                error = exc
+                if attempt >= self.MAX_ATTEMPTS - 1:
+                    break
+            except requests.exceptions.JSONDecodeError as exc:
                 error = exc
             except ValueError as exc:
                 error = exc

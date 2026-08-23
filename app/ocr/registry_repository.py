@@ -36,7 +36,8 @@ def save_registry_result(
             cur.execute(
                 """
                 INSERT INTO registry_results (
-                    analysis_id, parse_status, parse_confidence, raw_address, issue_date,
+                    analysis_id, parse_status, parse_confidence, raw_address,
+                    dong_name, floor, ho_name, exclusive_area, issue_date,
                     source_type, raw_text, has_cancellation_mention,
                     gap_section_status, eul_section_status,
                     seizure, provisional_seizure, provisional_disposition,
@@ -45,6 +46,7 @@ def save_registry_result(
                     active_mortgage_count, total_active_max_claim_amount,
                     parsed_at, created_at
                 ) VALUES (
+                    %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
                     %s, %s, %s,
                     %s, %s,
@@ -61,6 +63,10 @@ def save_registry_result(
                     owner_info.parse_status,
                     owner_info.parse_confidence,
                     owner_info.raw_address,
+                    owner_info.dong_name,
+                    owner_info.floor,
+                    owner_info.ho_name,
+                    owner_info.exclusive_area,
                     owner_info.issue_date,
                     owner_info.source_type.upper(),
                     owner_info.raw_text,
